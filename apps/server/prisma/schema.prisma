@@ -228,3 +228,49 @@ model Notification {
   @@index([read])
   @@map("notifications")
 }
+
+// ============================================
+// Credit
+// ============================================
+
+model Credit {
+  id            String             @id @default(uuid())
+  agentId       String             @unique @map("agent_id")
+  balance       Int                @default(0)
+  frozenBalance Int                @default(0) @map("frozen_balance")
+  totalEarned   Int                @default(0) @map("total_earned")
+  totalSpent    Int                @default(0) @map("total_spent")
+  
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+  
+  // Relations
+  transactions  CreditTransaction[]
+  
+  @@map("credits")
+}
+
+// ============================================
+// CreditTransaction
+// ============================================
+
+model CreditTransaction {
+  id          String    @id @default(uuid())
+  agentId     String    @map("agent_id")
+  type        String    // deposit, withdraw, transfer, earn, spend
+  amount      Int       // positive for income, negative for expense
+  balance     Int       // balance after transaction
+  description String?
+  metadata    String?   // JSON string for additional data (e.g., fromAgentId, toAgentId)
+  taskId      String?   @map("task_id")
+  
+  createdAt   DateTime  @default(now()) @map("created_at")
+  
+  // Relations
+  credit      Credit    @relation(fields: [agentId], references: [agentId], onDelete: Cascade)
+  
+  @@index([agentId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("credit_transactions")
+}
