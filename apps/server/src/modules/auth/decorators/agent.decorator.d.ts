@@ -1,0 +1,2 @@
+export declare const Agent: (...dataOrPipes: (string | import("@nestjs/common").PipeTransform<any, any> | import("@nestjs/common").Type<import("@nestjs/common").PipeTransform<any, any>>)[]) => ParameterDecorator;
+//# sourceMappingURL=agent.decorator.d.ts.map

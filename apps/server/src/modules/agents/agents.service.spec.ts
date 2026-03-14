@@ -182,7 +182,7 @@ describe('AgentsService', () => {
       const result = await service.discover({ skill: 'code-review' });
 
       expect(result.agents).toHaveLength(1);
-      expect(result.agents[0].capabilities.skills).toContain('code-review');
+      expect((result.agents[0].capabilities as any)?.skills).toContain('code-review');
     });
 
     it('should return agents filtered by status', async () => {
