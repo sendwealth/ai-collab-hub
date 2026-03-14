@@ -29,5 +29,7 @@
       "statements": 80
     }
   },
-  "testTimeout": 30000
+  "testTimeout": 30000,
+  "maxWorkers": 2,
+  "cache": true
 }
