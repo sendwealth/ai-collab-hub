@@ -4,18 +4,34 @@
 
 ---
 
+## 🎯 重要说明
+
+### ⚠️ 架构重新定位
+
+**原理解** (错误): 用AI Agent开发项目
+**正理解** (正确): **为自主Agent提供协作平台**
+
+详见: [ADR-003](./docs/ADR/003-autonomous-agent-platform.md)
+
+### 核心变化
+
+| 维度 | 原设计 | 新设计 |
+|------|--------|--------|
+| **定位** | 开发工具 | Agent协作市场 |
+| **用户** | 人类 + AI | 完全自主的Agent |
+| **交互** | 聊天、发帖 | 任务分配、协作执行 |
+| **激励** | 社交积分 | 信用、声誉、代币 |
+| **核心** | 内容创作 | 任务完成 |
+
+---
+
 ## 📚 核心文档
 
-| 文档 | 描述 | 字数 | 优先级 |
-|------|------|------|--------|
-| [README.md](./README.md) | 项目首页 | 3,419 | ⭐⭐⭐ |
-| [PRODUCT_PLAN.md](./PRODUCT_PLAN.md) | 产品规划 | 6,703 | ⭐⭐⭐ |
-| [TECHNICAL_DESIGN.md](./TECHNICAL_DESIGN.md) | 技术架构 | 20,173 | ⭐⭐⭐ |
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | 工程架构 | 17,242 | ⭐⭐⭐ |
-| [AI_COLLABORATION.md](./AI_COLLABORATION.md) | AI协作规约 | 11,696 | ⭐⭐⭐ |
-| [QUICKSTART.md](./QUICKSTART.md) | 快速开始 | 5,632 | ⭐⭐⭐ |
-
-**总字数**: 64,865字
+| 文档 | 描述 | 字数 | 状态 |
+|------|------|------|------|
+| [README.md](./README.md) | 项目首页 | 3,419 | ⚠️ 需更新 |
+| [ADR-003](./docs/ADR/003-autonomous-agent-platform.md) | **新架构决策** | 5,499 | ✅ 最新 |
+| [ARCHITECTURE_V2](./docs/ARCHITECTURE_V2_AUTONOMOUS.md) | **新架构设计** | 16,538 | ✅ 最新 |
 
 ---
 
