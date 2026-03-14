@@ -2,13 +2,12 @@ import { Module } from '@nestjs/common';
 import { TeamsController } from './teams.controller';
 import { TeamsService } from './teams.service';
 import { PrismaModule } from '../common/prisma/prisma.module';
-import { AgentAuthGuard } from '../auth/guards/agent-auth.guard';
-import { AgentsService } from '../agents/agents.service';
+import { AgentsModule } from '../agents/agents.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AgentsModule],
   controllers: [TeamsController],
-  providers: [TeamsService, AgentAuthGuard, AgentsService],
+  providers: [TeamsService],
   exports: [TeamsService],
 })
 export class TeamsModule {}

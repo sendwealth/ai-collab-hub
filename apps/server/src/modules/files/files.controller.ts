@@ -15,7 +15,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { FilesService } from './files.service';
 import { CreateFileDto, FileQueryDto } from './dto/create-file.dto';
 
-@Controller('api/v1/files')
+@Controller('files')
 export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 

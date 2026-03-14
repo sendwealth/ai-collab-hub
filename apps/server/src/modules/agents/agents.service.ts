@@ -1,11 +1,15 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { CacheService } from '../cache';
 import { CreateAgentDto, UpdateAgentDto, UpdateAgentStatusDto } from './dto';
 import * as crypto from 'crypto';
 
 @Injectable()
 export class AgentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+  ) {}
 
   /**
    * Agent注册
@@ -38,6 +42,9 @@ export class AgentsService {
       },
     });
 
+    // 清除agent列表缓存
+    await this.cache.invalidate('agents:*');
+
     return {
       agentId: agent.id,
       apiKey: agent.apiKey,
@@ -46,30 +53,36 @@ export class AgentsService {
   }
 
   /**
-   * 获取Agent自己的信息
+   * 获取Agent自己的信息（带缓存）
    */
   async getMe(agentId: string) {
-    const agent = await this.prisma.agent.findUnique({
-      where: { id: agentId },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        capabilities: true,
-        endpoint: true,
-        metadata: true,
-        status: true,
-        trustScore: true,
-        createdAt: true,
-        lastSeen: true,
+    return this.cache.getOrSet(
+      `agent:me:${agentId}`,
+      async () => {
+        const agent = await this.prisma.agent.findUnique({
+          where: { id: agentId },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            capabilities: true,
+            endpoint: true,
+            metadata: true,
+            status: true,
+            trustScore: true,
+            createdAt: true,
+            lastSeen: true,
+          },
+        });
+
+        if (!agent) {
+          throw new NotFoundException('Agent not found');
+        }
+
+        return agent;
       },
-    });
-
-    if (!agent) {
-      throw new NotFoundException('Agent not found');
-    }
-
-    return agent;
+      600, // 10分钟缓存
+    );
   }
 
   /**
@@ -83,6 +96,11 @@ export class AgentsService {
         updatedAt: new Date(),
       },
     });
+
+    // 清除相关缓存
+    await this.cache.del(`agent:me:${agentId}`);
+    await this.cache.del(`agent:profile:${agentId}`);
+    await this.cache.invalidate('agents:*');
 
     return {
       message: 'Agent updated successfully',
@@ -107,6 +125,10 @@ export class AgentsService {
       },
     });
 
+    // 清除缓存
+    await this.cache.del(`agent:me:${agentId}`);
+    await this.cache.invalidate('agents:*');
+
     return {
       message: 'Status updated successfully',
       status: agent.status,
@@ -114,68 +136,82 @@ export class AgentsService {
   }
 
   /**
-   * 发现Agent（根据技能过滤）
+   * 发现Agent（根据技能过滤）- 带缓存
    */
   async discover(filters: { skill?: string; status?: string; limit?: number }) {
-    const where: any = {};
+    const cacheKey = `agents:discover:${JSON.stringify(filters)}`;
+    
+    return this.cache.getOrSet(
+      cacheKey,
+      async () => {
+        const where: any = {};
 
-    if (filters.status) {
-      where.status = filters.status;
-    }
+        if (filters.status) {
+          where.status = filters.status;
+        }
 
-    if (filters.skill) {
-      where.capabilities = {
-        path: ['skills'],
-        array_contains: [filters.skill],
-      };
-    }
+        if (filters.skill) {
+          where.capabilities = {
+            path: ['skills'],
+            array_contains: [filters.skill],
+          };
+        }
 
-    const agents = await this.prisma.agent.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        capabilities: true,
-        status: true,
-        trustScore: true,
-        lastSeen: true,
+        const agents = await this.prisma.agent.findMany({
+          where,
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            capabilities: true,
+            status: true,
+            trustScore: true,
+            lastSeen: true,
+          },
+          take: filters.limit || 20,
+          orderBy: {
+            trustScore: 'desc',
+          },
+        });
+
+        return {
+          total: agents.length,
+          agents,
+        };
       },
-      take: filters.limit || 20,
-      orderBy: {
-        trustScore: 'desc',
-      },
-    });
-
-    return {
-      total: agents.length,
-      agents,
-    };
+      300, // 5分钟缓存
+    );
   }
 
   /**
-   * 获取Agent详情（公开信息）
+   * 获取Agent详情（公开信息）- 带缓存
    */
   async getAgentProfile(agentId: string) {
-    const agent = await this.prisma.agent.findUnique({
-      where: { id: agentId },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        capabilities: true,
-        status: true,
-        trustScore: true,
-        createdAt: true,
-        // 不暴露敏感信息
+    return this.cache.getOrSet(
+      `agent:profile:${agentId}`,
+      async () => {
+        const agent = await this.prisma.agent.findUnique({
+          where: { id: agentId },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            capabilities: true,
+            status: true,
+            trustScore: true,
+            createdAt: true,
+            // 不暴露敏感信息
+          },
+        });
+
+        if (!agent) {
+          throw new NotFoundException('Agent not found');
+        }
+
+        return agent;
       },
-    });
-
-    if (!agent) {
-      throw new NotFoundException('Agent not found');
-    }
-
-    return agent;
+      600, // 10分钟缓存
+    );
   }
 
   /**

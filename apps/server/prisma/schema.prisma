@@ -274,3 +274,147 @@ model CreditTransaction {
   @@index([createdAt])
   @@map("credit_transactions")
 }
+
+// ============================================
+// Phase 3: AI Recommendation System Models
+// ============================================
+
+// Agent Capabilities Vector
+model AgentCapability {
+  id            String   @id @default(uuid())
+  agentId       String   @unique @map("agent_id")
+  
+  // Skill vectors (normalized scores 0-100)
+  coding        Int      @default(0)
+  writing       Int      @default(0)
+  analysis      Int      @default(0)
+  design        Int      @default(0)
+  testing       Int      @default(0)
+  devops        Int      @default(0)
+  dataScience   Int      @default(0) @map("data_science")
+  machineLearning Int    @default(0) @map("machine_learning")
+  projectMgmt   Int      @default(0) @map("project_mgmt")
+  
+  // Specialized skills (JSON array)
+  specialized   String?  // JSON string array
+  
+  // Last updated
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  
+  @@index([agentId])
+  @@map("agent_capabilities")
+}
+
+// Agent Performance Metrics
+model AgentPerformance {
+  id                String   @id @default(uuid())
+  agentId           String   @map("agent_id")
+  
+  // Performance metrics
+  tasksCompleted    Int      @default(0) @map("tasks_completed")
+  tasksFailed       Int      @default(0) @map("tasks_failed")
+  totalBids         Int      @default(0) @map("total_bids")
+  acceptedBids      Int      @default(0) @map("accepted_bids")
+  
+  // Quality metrics
+  avgRating         Float    @default(0) @map("avg_rating")
+  onTimeDelivery    Float    @default(0) @map("on_time_delivery") // percentage
+  
+  // Speed metrics
+  avgResponseTime   Int      @default(0) @map("avg_response_time") // minutes
+  avgCompletionTime Int      @default(0) @map("avg_completion_time") // hours
+  
+  // Earnings
+  totalEarned       Int      @default(0) @map("total_earned")
+  avgTaskValue      Float    @default(0) @map("avg_task_value")
+  
+  // Period
+  periodStart       DateTime @map("period_start")
+  periodEnd         DateTime @map("period_end")
+  
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  
+  @@index([agentId])
+  @@index([periodStart])
+  @@map("agent_performance")
+}
+
+// Recommendation Log
+model RecommendationLog {
+  id                String   @id @default(uuid())
+  type              String   // "agent" or "task"
+  
+  // Input
+  inputId           String   @map("input_id") // taskId or agentId
+  inputFeatures     String   // JSON string
+  
+  // Output
+  recommendations   String   // JSON array of recommended IDs with scores
+  
+  // Context
+  context           String?  // JSON string (user preferences, filters, etc.)
+  
+  // Performance tracking
+  clicked           Boolean  @default(false)
+  accepted          Boolean  @default(false)
+  
+  createdAt         DateTime @default(now()) @map("created_at")
+  
+  @@index([type])
+  @@index([inputId])
+  @@index([createdAt])
+  @@map("recommendation_logs")
+}
+
+// Price History
+model PriceHistory {
+  id              String   @id @default(uuid())
+  category        String
+  
+  // Task details
+  taskId          String?  @map("task_id")
+  taskType        String?  @map("task_type")
+  difficulty      String?  // easy, medium, hard
+  
+  // Price data
+  suggestedPrice  Int      @map("suggested_price")
+  finalPrice      Int      @map("final_price")
+  
+  // Market data
+  avgMarketPrice  Int      @map("avg_market_price")
+  supplyLevel     String   @map("supply_level") // low, medium, high
+  demandLevel     String   @map("demand_level") // low, medium, high
+  
+  createdAt       DateTime @default(now()) @map("created_at")
+  
+  @@index([category])
+  @@index([taskId])
+  @@index([createdAt])
+  @@map("price_history")
+}
+
+// Market Trends
+model MarketTrend {
+  id              String   @id @default(uuid())
+  category        String
+  
+  // Statistics
+  totalTasks      Int      @default(0) @map("total_tasks")
+  avgPrice        Int      @default(0) @map("avg_price")
+  avgCompletionTime Int    @default(0) @map("avg_completion_time")
+  
+  // Supply/Demand
+  availableAgents Int      @default(0) @map("available_agents")
+  openTasks       Int      @default(0) @map("open_tasks")
+  ratio           Float    @default(0) // supply/demand ratio
+  
+  // Period
+  periodStart     DateTime @map("period_start")
+  periodEnd       DateTime @map("period_end")
+  
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  @@index([category])
+  @@index([periodStart])
+  @@map("market_trends")
+}
