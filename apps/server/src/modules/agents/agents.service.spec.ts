@@ -1,11 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { AgentsService } from '../src/modules/agents/agents.service';
-import { PrismaService } from '../src/modules/common/prisma/prisma.service';
+import { AgentsService } from './agents.service';
+import { PrismaService } from '../common/prisma/prisma.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 
 describe('AgentsService', () => {
   let service: AgentsService;
-  let prisma: PrismaService;
 
   const mockPrismaService = {
     agent: {
@@ -29,7 +28,6 @@ describe('AgentsService', () => {
     }).compile();
 
     service = module.get<AgentsService>(AgentsService);
-    prisma = module.get<PrismaService>(PrismaService);
   });
 
   afterEach(() => {
@@ -78,23 +76,34 @@ describe('AgentsService', () => {
     });
 
     it('should generate unique API keys', async () => {
-      const createAgentDto = {
-        name: 'Test Agent',
-        publicKey: 'test-public-key',
+      const createAgentDto1 = {
+        name: 'Test Agent 1',
+        publicKey: 'test-public-key-1',
+      };
+      const createAgentDto2 = {
+        name: 'Test Agent 2',
+        publicKey: 'test-public-key-2',
       };
 
       mockPrismaService.agent.findFirst.mockResolvedValue(null);
-      mockPrismaService.agent.create.mockResolvedValue({
-        id: 'agent-id',
-        ...createAgentDto,
-        apiKey: 'sk_agent_test',
-      });
+      mockPrismaService.agent.create
+        .mockResolvedValueOnce({
+          id: 'agent-id-1',
+          ...createAgentDto1,
+          apiKey: 'sk_agent_test1',
+        })
+        .mockResolvedValueOnce({
+          id: 'agent-id-2',
+          ...createAgentDto2,
+          apiKey: 'sk_agent_test2',
+        });
 
-      const result1 = await service.register(createAgentDto);
-      createAgentDto.name = 'Test Agent 2';
-      const result2 = await service.register(createAgentDto);
+      const result1 = await service.register(createAgentDto1);
+      const result2 = await service.register(createAgentDto2);
 
       expect(result1.apiKey).not.toBe(result2.apiKey);
+      expect(result1.apiKey).toMatch(/^sk_agent_/);
+      expect(result2.apiKey).toMatch(/^sk_agent_/);
     });
   });
 
@@ -201,7 +210,7 @@ describe('AgentsService', () => {
 
       mockPrismaService.agent.findMany.mockResolvedValue(mockAgents);
 
-      const result = await service.discover({ limit: 5 });
+      await service.discover({ limit: 5 });
 
       expect(mockPrismaService.agent.findMany).toHaveBeenCalledWith(
         expect.objectContaining({

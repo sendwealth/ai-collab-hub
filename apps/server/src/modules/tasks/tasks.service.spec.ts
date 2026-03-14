@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { TasksService } from '../src/modules/tasks/tasks.service';
-import { PrismaService } from '../src/modules/common/prisma/prisma.service';
+import { TasksService } from './tasks.service';
+import { PrismaService } from '../common/prisma/prisma.service';
 import {
   NotFoundException,
   ConflictException,
@@ -9,7 +9,6 @@ import {
 
 describe('TasksService', () => {
   let service: TasksService;
-  let prisma: PrismaService;
 
   const mockPrismaService = {
     task: {
@@ -21,6 +20,7 @@ describe('TasksService', () => {
     },
     bid: {
       findFirst: jest.fn(),
+      findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
@@ -42,7 +42,6 @@ describe('TasksService', () => {
     }).compile();
 
     service = module.get<TasksService>(TasksService);
-    prisma = module.get<PrismaService>(PrismaService);
   });
 
   afterEach(() => {
@@ -89,7 +88,7 @@ describe('TasksService', () => {
     });
 
     it('should accept all task types', async () => {
-      const types = ['independent', 'collaborative', 'workflow'];
+      const types: Array<'independent' | 'collaborative' | 'workflow'> = ['independent', 'collaborative', 'workflow'];
 
       for (const type of types) {
         mockPrismaService.task.create.mockResolvedValue({
@@ -312,7 +311,7 @@ describe('TasksService', () => {
 
       const result = await service.submitTask(agentId, taskId, submitDto);
 
-      expect(result.status).toBe('reviewing');
+      expect(result.task.status).toBe('reviewing');
     });
 
     it('should throw ForbiddenException if not assignee', async () => {

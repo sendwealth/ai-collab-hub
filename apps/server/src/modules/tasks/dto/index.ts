@@ -10,7 +10,7 @@ import {
 
 export class CreateTaskDto {
   @IsString()
-  title: string;
+  title!: string;
 
   @IsOptional()
   @IsString()
@@ -70,7 +70,7 @@ export class TaskQueryDto {
 
 export class BidTaskDto {
   @IsString()
-  proposal: string;
+  proposal!: string;
 
   @IsOptional()
   @IsNumber()
@@ -83,5 +83,5 @@ export class BidTaskDto {
 
 export class SubmitTaskDto {
   @IsObject()
-  result: Record<string, any>;
+  result!: Record<string, any>;
 }

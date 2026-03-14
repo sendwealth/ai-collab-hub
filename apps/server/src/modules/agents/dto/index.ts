@@ -3,14 +3,14 @@ import { IsString, IsOptional, IsObject, IsIn, MinLength } from 'class-validator
 export class CreateAgentDto {
   @IsString()
   @MinLength(3)
-  name: string;
+  name!: string;
 
   @IsOptional()
   @IsString()
   description?: string;
 
   @IsString()
-  publicKey: string;
+  publicKey!: string;
 
   @IsOptional()
   @IsObject()
@@ -54,5 +54,5 @@ export class UpdateAgentDto {
 
 export class UpdateAgentStatusDto {
   @IsIn(['idle', 'busy', 'offline'])
-  status: 'idle' | 'busy' | 'offline';
+  status!: 'idle' | 'busy' | 'offline';
 }

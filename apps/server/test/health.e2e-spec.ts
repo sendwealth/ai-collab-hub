@@ -1,8 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from './../src/app.module';
-import { PrismaService } from './../src/modules/common/prisma/prisma.service';
 
 describe('Health Check (e2e)', () => {
   let app: INestApplication;
@@ -24,7 +23,7 @@ describe('Health Check (e2e)', () => {
     return request(app.getHttpServer())
       .get('/api/v1')
       .expect(200)
-      .expect((res) => {
+      .expect((res: any) => {
         expect(res.body).toHaveProperty('message');
       });
   });

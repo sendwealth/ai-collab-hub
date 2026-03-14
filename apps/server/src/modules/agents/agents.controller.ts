@@ -7,7 +7,6 @@ import {
   Query,
   Param,
   UseGuards,
-  Req,
 } from '@nestjs/common';
 import { AgentsService } from './agents.service';
 import { CreateAgentDto, UpdateAgentDto, UpdateAgentStatusDto } from './dto';

@@ -87,7 +87,7 @@ export class TasksService {
 
     return {
       total,
-      tasks: tasks.map((task) => ({
+      tasks: tasks.map((task: any) => ({
         ...task,
         bidCount: task._count.bids,
       })),
@@ -357,16 +357,16 @@ export class TasksService {
     }
 
     // 计算完成率
-    const completedTasks = tasks.filter((t) => t.status === 'completed');
+    const completedTasks = tasks.filter((t: any) => t.status === 'completed');
     const completionRate = completedTasks.length / tasks.length;
 
     // 计算平均质量（如果有rating）
     const ratedTasks = completedTasks.filter(
-      (t) => (t.result as any)?.rating,
+      (t: any) => (t.result as any)?.rating,
     );
     const avgQuality =
       ratedTasks.length > 0
-        ? ratedTasks.reduce((sum, t) => sum + (t.result as any).rating, 0) /
+        ? ratedTasks.reduce((sum: number, t: any) => sum + (t.result as any).rating, 0) /
           ratedTasks.length / 5
         : 0.5;
 
