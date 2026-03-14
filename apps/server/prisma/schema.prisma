@@ -1,4 +1,4 @@
-// Prisma Schema for AI Collab Platform
+// Prisma Schema for Autonomous Agent Collaboration Platform
 
 generator client {
   provider = "prisma-client-js"
@@ -10,258 +10,366 @@ datasource db {
 }
 
 // ============================================
-// 用户和认证
-// ============================================
-
-model User {
-  id            String    @id @default(uuid())
-  username      String    @unique
-  email         String    @unique
-  passwordHash  String    @map("password_hash")
-  type          UserType  @default(HUMAN)
-  avatar        String?
-  status        UserStatus @default(OFFLINE)
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-
-  // 关系
-  messages      Message[]
-  channels      ChannelMember[]
-  agents        Agent?
-  tasks         Task[]      @relation("TaskCreator")
-  assignedTasks Task[]      @relation("TaskAssignee")
-  memories      Memory[]
-
-  @@map("users")
-}
-
-enum UserType {
-  HUMAN
-  AGENT
-}
-
-enum UserStatus {
-  ONLINE
-  BUSY
-  OFFLINE
-}
-
-// ============================================
-// Agent
+// Agent注册与身份
 // ============================================
 
 model Agent {
-  id          String          @id @default(uuid())
-  userId      String          @unique @map("user_id")
-  name        String
-  description String?
-  capabilities Json           @default("{}")
-  endpoint    String?
-  metadata    Json            @default("{}")
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
-
+  id            String          @id @default(uuid())
+  did           String?         @unique @map("did") // W3C DID
+  name          String
+  description   String?
+  publicKey     String          @map("public_key") // RSA/Ed25519公钥
+  apiKey        String          @unique @map("api_key") // 平台颁发的API Key
+  
+  // 能力声明
+  capabilities  Json            @default("{}")
+  skills        String[]        @default([])
+  tools         String[]        @default([])
+  protocols     String[]        @default([]) // ["a2a", "mcp"]
+  
+  // 端点
+  httpEndpoint  String?         @map("http_endpoint")
+  wsEndpoint    String?         @map("ws_endpoint")
+  
+  // 信任评分
+  trustScore    Float           @default(0) @map("trust_score")
+  trustLevel    TrustLevel      @default(NEWCOMER) @map("trust_level")
+  totalTasks    Int             @default(0) @map("total_tasks")
+  completedTasks Int            @default(0) @map("completed_tasks")
+  
+  // 状态
+  status        AgentStatus     @default(IDLE)
+  lastSeenAt    DateTime?       @map("last_seen_at")
+  
+  // 元数据
+  metadata      Json            @default("{}")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  
   // 关系
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tasks       Task[]
-
+  bids          Bid[]
+  tasksCreated  Task[]          @relation("TaskCreator")
+  tasksAssigned Task[]          @relation("TaskAssignee")
+  teamMembers   TeamMember[]
+  messages      Message[]
+  reputation    Reputation?
+  
+  @@index([status, trustScore])
   @@map("agents")
 }
 
+enum TrustLevel {
+  NEWCOMER    // 0-10
+  RELIABLE    // 11-50
+  EXCELLENT   // 51-100
+  EXPERT      // 101+
+}
+
+enum AgentStatus {
+  IDLE        // 空闲
+  BUSY        // 忙碌
+  OFFLINE     // 离线
+}
+
 // ============================================
-// 频道和消息
+// 信任与声誉
 // ============================================
 
-model Channel {
+model Reputation {
+  id              String    @id @default(uuid())
+  agentId         String    @unique @map("agent_id")
+  
+  // 评分维度
+  completionRate  Float     @default(0) @map("completion_rate")  // 完成率
+  qualityScore    Float     @default(0) @map("quality_score")    // 质量分
+  speedScore      Float     @default(0) @map("speed_score")      // 速度分
+  collabScore     Float     @default(0) @map("collab_score")     // 协作分
+  
+  // 统计
+  totalReviews    Int       @default(0) @map("total_reviews")
+  averageRating   Float     @default(0) @map("average_rating")
+  
+  // 信用积分
+  credits         Float     @default(0)
+  
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  
+  agent           Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  @@map("reputations")
+}
+
+// ============================================
+// 任务市场
+// ============================================
+
+model Task {
+  id              String        @id @default(uuid())
+  title           String
+  description     String?       @db.Text
+  
+  // 任务类型
+  type            TaskType      @default(INDEPENDENT)
+  category        String?
+  
+  // 需求
+  requirements    Json          @default("{}")
+  requiredSkills  String[]      @default([])
+  minTrustScore   Float         @default(0) @map("min_trust_score")
+  maxAgents       Int           @default(1) @map("max_agents")
+  
+  // 奖励
+  creditReward    Float         @default(0) @map("credit_reward")
+  reputationBonus Float         @default(0) @map("reputation_bonus")
+  
+  // 状态
+  status          TaskStatus    @default(OPEN)
+  
+  // 创建者和分配
+  creatorId       String        @map("creator_id")
+  creatorType     CreatorType   @default(AGENT) @map("creator_type")
+  assignedTo      String[]      @default([]) @map("assigned_to")
+  
+  // 结果
+  result          Json?
+  submittedAt     DateTime?     @map("submitted_at")
+  completedAt     DateTime?     @map("completed_at")
+  
+  // 时间
+  deadline        DateTime?
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  
+  // 关系
+  bids            Bid[]
+  workflowSteps   WorkflowStep[]
+  
+  creator         Agent         @relation("TaskCreator", fields: [creatorId], references: [id])
+  assignees       Agent[]       @relation("TaskAssignee", fields: [assignedTo], references: [id])
+  
+  @@index([status, createdAt(sort: Desc)])
+  @@map("tasks")
+}
+
+enum TaskType {
+  INDEPENDENT   // 独立任务
+  COLLABORATIVE // 协作任务
+  WORKFLOW      // 工作流
+}
+
+enum TaskStatus {
+  OPEN          // 开放
+  BIDDING       // 竞标中
+  ASSIGNED      // 已分配
+  RUNNING       // 执行中
+  REVIEWING     // 审查中
+  COMPLETED     // 已完成
+  FAILED        // 失败
+  CANCELLED     // 已取消
+}
+
+enum CreatorType {
+  AGENT         // Agent创建
+  HUMAN         // 人类创建
+}
+
+// ============================================
+// 竞标
+// ============================================
+
+model Bid {
+  id            String      @id @default(uuid())
+  taskId        String      @map("task_id")
+  agentId       String      @map("agent_id")
+  
+  proposal      String      @db.Text
+  estimatedTime Int         @map("estimated_time") // 秒
+  estimatedCost Float?      @map("estimated_cost")
+  
+  status        BidStatus   @default(PENDING)
+  
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  
+  task          Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agent         Agent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  @@unique([taskId, agentId])
+  @@map("bids")
+}
+
+enum BidStatus {
+  PENDING       // 待审核
+  ACCEPTED      // 已接受
+  REJECTED      // 已拒绝
+  WITHDRAWN     // 已撤回
+}
+
+// ============================================
+// 协作
+// ============================================
+
+model Team {
   id          String        @id @default(uuid())
   name        String
-  type        ChannelType
-  description String?
-  createdById String?       @map("created_by")
+  taskId      String?       @map("task_id")
+  
+  leaderId    String        @map("leader_id")
+  
+  status      TeamStatus    @default(FORMING)
+  
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
-
-  // 关系
-  members     ChannelMember[]
-  messages    Message[]
-
-  @@map("channels")
+  
+  members     TeamMember[]
+  
+  @@map("teams")
 }
 
-enum ChannelType {
-  DM      // 私聊
-  GROUP   // 群聊
-  TASK    // 任务频道
+enum TeamStatus {
+  FORMING     // 组建中
+  ACTIVE      // 活跃
+  COMPLETED   // 已完成
+  DISBANDED   // 已解散
 }
 
-model ChannelMember {
-  channelId   String    @map("channel_id")
-  userId      String    @map("user_id")
-  role        MemberRole @default(MEMBER)
-  joinedAt    DateTime  @default(now()) @map("joined_at")
-
-  // 关系
-  channel     Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([channelId, userId])
-  @@map("channel_members")
+model TeamMember {
+  id          String      @id @default(uuid())
+  teamId      String      @map("team_id")
+  agentId     String      @map("agent_id")
+  
+  role        TeamRole    @default(WORKER)
+  
+  joinedAt    DateTime    @default(now()) @map("joined_at")
+  
+  team        Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  agent       Agent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  @@unique([teamId, agentId])
+  @@map("team_members")
 }
 
-enum MemberRole {
-  OWNER
-  ADMIN
-  MEMBER
+enum TeamRole {
+  LEADER      // 协调者
+  WORKER      // 执行者
+  REVIEWER    // 审查者
+  SUPPORT     // 支持者
 }
+
+// ============================================
+// 工作流
+// ============================================
+
+model Workflow {
+  id          String          @id @default(uuid())
+  name        String
+  description String?
+  
+  definition  Json            // 工作流定义
+  variables   Json            @default("{}")
+  
+  status      WorkflowStatus  @default(PENDING)
+  
+  taskId      String?         @map("task_id")
+  
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  startedAt   DateTime?       @map("started_at")
+  completedAt DateTime?       @map("completed_at")
+  
+  steps       WorkflowStep[]
+  
+  @@map("workflows")
+}
+
+enum WorkflowStatus {
+  PENDING     // 待启动
+  RUNNING     // 运行中
+  COMPLETED   // 已完成
+  FAILED      // 失败
+  CANCELLED   // 已取消
+}
+
+model WorkflowStep {
+  id          String            @id @default(uuid())
+  workflowId  String            @map("workflow_id")
+  taskId      String?           @map("task_id")
+  
+  stepId      String            @map("step_id") // 在工作流定义中的ID
+  name        String
+  
+  status      WorkflowStepStatus @default(PENDING)
+  
+  input       Json?
+  output      Json?
+  
+  agentId     String?           @map("agent_id")
+  
+  startedAt   DateTime?         @map("started_at")
+  completedAt DateTime?         @map("completed_at")
+  
+  workflow    Workflow          @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  task        Task?             @relation(fields: [taskId], references: [id])
+  
+  @@index([workflowId, stepId])
+  @@map("workflow_steps")
+}
+
+enum WorkflowStepStatus {
+  PENDING     // 待执行
+  RUNNING     // 执行中
+  COMPLETED   // 已完成
+  FAILED      // 失败
+  SKIPPED     // 已跳过
+}
+
+// ============================================
+// 通信
+// ============================================
 
 model Message {
-  id          String        @id @default(uuid())
-  channelId   String        @map("channel_id")
-  senderId    String        @map("sender_id")
-  parentId    String?       @map("parent_id")
-  content     String        @db.Text
-  type        MessageType   @default(TEXT)
-  metadata    Json          @default("{}")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
-  deletedAt   DateTime?     @map("deleted_at")
-
-  // 关系
-  channel     Channel       @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  sender      User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  reactions   Reaction[]
-
-  @@index([channelId, createdAt(sort: Desc)])
+  id            String        @id @default(uuid())
+  
+  fromAgentId   String        @map("from_agent_id")
+  toAgentId     String?       @map("to_agent_id") // null表示广播
+  
+  type          MessageType
+  action        String        // task.bid, task.accept, collab.request, etc.
+  payload       Json
+  
+  protocol      String        @default("a2a") // a2a, mcp, custom
+  
+  signature     String?       // 消息签名
+  
+  createdAt     DateTime      @default(now()) @map("created_at")
+  
+  fromAgent     Agent         @relation(fields: [fromAgentId], references: [id])
+  
+  @@index([fromAgentId, createdAt(sort: Desc)])
+  @@index([toAgentId, createdAt(sort: Desc)])
   @@map("messages")
 }
 
 enum MessageType {
-  TEXT
-  FILE
-  IMAGE
-  SYSTEM
-  TASK
-}
-
-model Reaction {
-  id          String      @id @default(uuid())
-  messageId   String      @map("message_id")
-  userId      String      @map("user_id")
-  emoji       String
-  createdAt   DateTime    @default(now()) @map("created_at")
-
-  // 关系
-  message     Message     @relation(fields: [messageId], references: [id], onDelete: Cascade)
-
-  @@unique([messageId, userId, emoji])
-  @@map("reactions")
+  REQUEST       // 请求
+  RESPONSE      // 响应
+  NOTIFICATION  // 通知
 }
 
 // ============================================
-// 任务
-// ============================================
-
-model Task {
-  id          String      @id @default(uuid())
-  title       String
-  description String?     @db.Text
-  channelId   String?     @map("channel_id")
-  creatorId   String      @map("creator_id")
-  assigneeId  String?     @map("assignee_id")
-  status      TaskStatus  @default(PENDING)
-  priority    TaskPriority @default(MEDIUM)
-  result      Json?
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
-  completedAt DateTime?   @map("completed_at")
-
-  // 关系
-  creator     User        @relation("TaskCreator", fields: [creatorId], references: [id])
-  assignee    User?       @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  agent       Agent?      @relation(fields: [assigneeId], references: [userId])
-  dependencies TaskDependency[] @relation("TaskDepends")
-  dependents  TaskDependency[] @relation("TaskDependent")
-
-  @@index([assigneeId, status])
-  @@map("tasks")
-}
-
-enum TaskStatus {
-  PENDING
-  ASSIGNED
-  RUNNING
-  COMPLETED
-  FAILED
-  CANCELLED
-}
-
-enum TaskPriority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
-
-model TaskDependency {
-  id            String    @id @default(uuid())
-  taskId        String    @map("task_id")
-  dependsOnId   String    @map("depends_on_id")
-  type          DependencyType @default(HARD)
-  createdAt     DateTime  @default(now()) @map("created_at")
-
-  // 关系
-  task          Task      @relation("TaskDepends", fields: [taskId], references: [id], onDelete: Cascade)
-  dependsOn     Task      @relation("TaskDependent", fields: [dependsOnId], references: [id], onDelete: Cascade)
-
-  @@unique([taskId, dependsOnId])
-  @@map("task_dependencies")
-}
-
-enum DependencyType {
-  HARD    // 必须完成
-  SOFT    // 软依赖
-}
-
-// ============================================
-// 记忆
-// ============================================
-
-model Memory {
-  id          String      @id @default(uuid())
-  agentId     String      @map("agent_id")
-  type        MemoryType
-  content     String      @db.Text
-  embedding   Float[]     // 向量嵌入
-  metadata    Json        @default("{}")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  expiresAt   DateTime?   @map("expires_at")
-
-  // 关系
-  user        User        @relation(fields: [agentId], references: [id], onDelete: Cascade)
-
-  @@index([agentId, type])
-  @@map("memories")
-}
-
-enum MemoryType {
-  SHORT   // 短期记忆
-  LONG    // 长期记忆
-  SHARED  // 共享记忆
-}
-
-// ============================================
-// 会话和Token
+// 会话管理
 // ============================================
 
 model Session {
   id          String    @id @default(uuid())
-  userId      String    @map("user_id")
+  agentId     String    @map("agent_id")
+  
   token       String    @unique
-  userAgent   String?   @map("user_agent")
-  ipAddress   String?   @map("ip_address")
+  
   expiresAt   DateTime  @map("expires_at")
   createdAt   DateTime  @default(now()) @map("created_at")
-
-  @@index([userId])
+  
+  @@index([agentId])
   @@map("sessions")
 }

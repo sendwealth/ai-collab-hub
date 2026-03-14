@@ -1,185 +1,316 @@
 // ============================================
-// 用户类型
-// ============================================
-
-export type UserType = 'HUMAN' | 'AGENT';
-export type UserStatus = 'ONLINE' | 'BUSY' | 'OFFLINE';
-
-export interface User {
-  id: string;
-  username: string;
-  email: string;
-  type: UserType;
-  avatar?: string;
-  status: UserStatus;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface CreateUserDto {
-  username: string;
-  email: string;
-  password: string;
-  type?: UserType;
-}
-
-export interface LoginDto {
-  email: string;
-  password: string;
-}
-
-export interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
-}
-
-// ============================================
 // Agent类型
 // ============================================
+
+export type TrustLevel = 'NEWCOMER' | 'RELIABLE' | 'EXCELLENT' | 'EXPERT';
+export type AgentStatus = 'IDLE' | 'BUSY' | 'OFFLINE';
 
 export interface AgentCapabilities {
   skills: string[];
   tools: string[];
   protocols: string[];
+  maxConcurrentTasks?: number;
+  estimatedResponseTime?: number;
 }
 
 export interface Agent {
   id: string;
-  userId: string;
+  did?: string;
   name: string;
   description?: string;
+  publicKey: string;
+  apiKey: string;
   capabilities: AgentCapabilities;
-  endpoint?: string;
+  skills: string[];
+  tools: string[];
+  protocols: string[];
+  httpEndpoint?: string;
+  wsEndpoint?: string;
+  trustScore: number;
+  trustLevel: TrustLevel;
+  totalTasks: number;
+  completedTasks: number;
+  status: AgentStatus;
+  lastSeenAt?: Date;
   metadata: Record<string, any>;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface CreateAgentDto {
+export interface RegisterAgentDto {
   name: string;
   description?: string;
+  publicKey: string;
+  did?: string;
   capabilities: AgentCapabilities;
-  endpoint?: string;
-}
-
-// ============================================
-// 频道和消息类型
-// ============================================
-
-export type ChannelType = 'DM' | 'GROUP' | 'TASK';
-export type MemberRole = 'OWNER' | 'ADMIN' | 'MEMBER';
-
-export interface Channel {
-  id: string;
-  name: string;
-  type: ChannelType;
-  description?: string;
-  createdById?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface ChannelMember {
-  channelId: string;
-  userId: string;
-  role: MemberRole;
-  joinedAt: Date;
-}
-
-export type MessageType = 'TEXT' | 'FILE' | 'IMAGE' | 'SYSTEM' | 'TASK';
-
-export interface Message {
-  id: string;
-  channelId: string;
-  senderId: string;
-  parentId?: string;
-  content: string;
-  type: MessageType;
-  metadata: Record<string, any>;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt?: Date;
-}
-
-export interface SendMessageDto {
-  channelId: string;
-  content: string;
-  type?: MessageType;
-  parentId?: string;
+  httpEndpoint?: string;
+  wsEndpoint?: string;
   metadata?: Record<string, any>;
 }
 
-export interface Reaction {
+export interface UpdateAgentStatusDto {
+  status: AgentStatus;
+}
+
+// ============================================
+// 信任与声誉
+// ============================================
+
+export interface Reputation {
   id: string;
-  messageId: string;
-  userId: string;
-  emoji: string;
+  agentId: string;
+  completionRate: number;
+  qualityScore: number;
+  speedScore: number;
+  collabScore: number;
+  totalReviews: number;
+  averageRating: number;
+  credits: number;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 // ============================================
 // 任务类型
 // ============================================
 
-export type TaskStatus = 'PENDING' | 'ASSIGNED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
-export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
-export type DependencyType = 'HARD' | 'SOFT';
+export type TaskType = 'INDEPENDENT' | 'COLLABORATIVE' | 'WORKFLOW';
+export type TaskStatus = 'OPEN' | 'BIDDING' | 'ASSIGNED' | 'RUNNING' | 'REVIEWING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+export type CreatorType = 'AGENT' | 'HUMAN';
+
+export interface TaskRequirements {
+  skills?: string[];
+  minExperience?: number;
+  languages?: string[];
+  tools?: string[];
+  [key: string]: any;
+}
 
 export interface Task {
   id: string;
   title: string;
   description?: string;
-  channelId?: string;
-  creatorId: string;
-  assigneeId?: string;
+  type: TaskType;
+  category?: string;
+  requirements: TaskRequirements;
+  requiredSkills: string[];
+  minTrustScore: number;
+  maxAgents: number;
+  creditReward: number;
+  reputationBonus: number;
   status: TaskStatus;
-  priority: TaskPriority;
+  creatorId: string;
+  creatorType: CreatorType;
+  assignedTo: string[];
   result?: Record<string, any>;
+  submittedAt?: Date;
+  completedAt?: Date;
+  deadline?: Date;
   createdAt: Date;
   updatedAt: Date;
-  completedAt?: Date;
 }
 
 export interface CreateTaskDto {
   title: string;
   description?: string;
-  channelId?: string;
-  assigneeId?: string;
-  priority?: TaskPriority;
-  dependencies?: string[];
+  type?: TaskType;
+  category?: string;
+  requirements?: TaskRequirements;
+  requiredSkills?: string[];
+  minTrustScore?: number;
+  maxAgents?: number;
+  creditReward: number;
+  reputationBonus?: number;
+  deadline?: Date;
 }
 
-export interface TaskDependency {
+export interface SubmitTaskResultDto {
+  result: Record<string, any>;
+}
+
+// ============================================
+// 竞标
+// ============================================
+
+export type BidStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN';
+
+export interface Bid {
   id: string;
   taskId: string;
-  dependsOnId: string;
-  type: DependencyType;
+  agentId: string;
+  proposal: string;
+  estimatedTime: number;
+  estimatedCost?: number;
+  status: BidStatus;
   createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateBidDto {
+  proposal: string;
+  estimatedTime: number;
+  estimatedCost?: number;
 }
 
 // ============================================
-// 记忆类型
+// 协作
 // ============================================
 
-export type MemoryType = 'SHORT' | 'LONG' | 'SHARED';
+export type TeamStatus = 'FORMING' | 'ACTIVE' | 'COMPLETED' | 'DISBANDED';
+export type TeamRole = 'LEADER' | 'WORKER' | 'REVIEWER' | 'SUPPORT';
 
-export interface Memory {
+export interface Team {
   id: string;
-  agentId: string;
-  type: MemoryType;
-  content: string;
-  embedding: number[];
-  metadata: Record<string, any>;
+  name: string;
+  taskId?: string;
+  leaderId: string;
+  status: TeamStatus;
   createdAt: Date;
-  expiresAt?: Date;
+  updatedAt: Date;
 }
 
-export interface StoreMemoryDto {
+export interface TeamMember {
+  id: string;
+  teamId: string;
   agentId: string;
-  type: MemoryType;
-  content: string;
-  metadata?: Record<string, any>;
-  expiresAt?: Date;
+  role: TeamRole;
+  joinedAt: Date;
+}
+
+export interface CreateTeamDto {
+  name: string;
+  taskId?: string;
+  leaderId: string;
+  memberIds?: string[];
+}
+
+// ============================================
+// 工作流
+// ============================================
+
+export type WorkflowStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+export type WorkflowStepStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'SKIPPED';
+
+export interface WorkflowDefinition {
+  name: string;
+  description?: string;
+  steps: WorkflowStepDefinition[];
+  variables?: Record<string, any>;
+  timeout?: number;
+  retryPolicy?: {
+    maxRetries: number;
+    backoff: 'fixed' | 'exponential';
+  };
+}
+
+export interface WorkflowStepDefinition {
+  id: string;
+  type: 'task' | 'condition' | 'parallel' | 'loop';
+  name: string;
+  agentSelector?: {
+    strategy: 'any' | 'specific' | 'capability';
+    requirements?: Record<string, any>;
+    agentId?: string;
+  };
+  action: string;
+  input?: any;
+  output?: string;
+  next?: string | string[];
+  condition?: {
+    if: string;
+    then: string;
+    else: string;
+  };
+  onFailure?: 'retry' | 'skip' | 'abort';
+}
+
+export interface Workflow {
+  id: string;
+  name: string;
+  description?: string;
+  definition: WorkflowDefinition;
+  variables: Record<string, any>;
+  status: WorkflowStatus;
+  taskId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  startedAt?: Date;
+  completedAt?: Date;
+}
+
+export interface WorkflowStep {
+  id: string;
+  workflowId: string;
+  taskId?: string;
+  stepId: string;
+  name: string;
+  status: WorkflowStepStatus;
+  input?: Record<string, any>;
+  output?: Record<string, any>;
+  agentId?: string;
+  startedAt?: Date;
+  completedAt?: Date;
+}
+
+export interface CreateWorkflowDto {
+  name: string;
+  description?: string;
+  definition: WorkflowDefinition;
+  variables?: Record<string, any>;
+}
+
+// ============================================
+// 通信
+// ============================================
+
+export type MessageType = 'REQUEST' | 'RESPONSE' | 'NOTIFICATION';
+
+export interface A2AMessage {
+  id: string;
+  fromAgentId: string;
+  toAgentId?: string;
+  type: MessageType;
+  action: string;
+  payload: Record<string, any>;
+  protocol: string;
+  signature?: string;
+  createdAt: Date;
+}
+
+export interface SendMessageDto {
+  toAgentId?: string;
+  type: MessageType;
+  action: string;
+  payload: Record<string, any>;
+  protocol?: string;
+}
+
+// ============================================
+// MCP协议
+// ============================================
+
+export interface MCPTool {
+  name: string;
+  description: string;
+  parameters: Record<string, any>;
+}
+
+export interface MCPResource {
+  uri: string;
+  name: string;
+  description?: string;
+  mimeType?: string;
+}
+
+export interface MCPExecuteRequest {
+  agentId: string;
+  tool: string;
+  parameters: Record<string, any>;
+}
+
+export interface MCPResourceRequest {
+  resourceUri: string;
+  access: 'read' | 'write';
 }
 
 // ============================================
@@ -209,88 +340,39 @@ export interface PaginatedResponse<T> {
 }
 
 // ============================================
-// WebSocket事件类型
+// WebSocket事件
 // ============================================
 
 export interface WebSocketEvents {
   // 客户端 -> 服务器
+  'agent:status': UpdateAgentStatusDto;
+  'task:search': { status?: TaskStatus; skills?: string[] };
+  'task:bid': { taskId: string; bid: CreateBidDto };
   'message:send': SendMessageDto;
-  'message:typing': { channelId: string };
-  'channel:join': { channelId: string };
-  'channel:leave': { channelId: string };
 
   // 服务器 -> 客户端
-  'message:new': Message;
-  'message:update': Message;
-  'message:delete': { id: string };
-  'user:status': { userId: string; status: UserStatus };
-  'typing:start': { channelId: string; userId: string };
-  'typing:stop': { channelId: string; userId: string };
-  'task:update': Task;
+  'task:available': Task;
+  'task:assigned': { taskId: string; agentId: string };
+  'task:updated': Task;
+  'message:received': A2AMessage;
+  'workflow:step:started': { workflowId: string; stepId: string };
+  'workflow:step:completed': { workflowId: string; stepId: string; output: any };
 }
 
 // ============================================
-// Agent协议类型
+// Agent SDK类型
 // ============================================
 
-// MCP (Model Context Protocol)
-export interface MCPTool {
-  name: string;
-  description: string;
-  parameters: Record<string, any>;
+export interface AgentClientConfig {
+  platformUrl: string;
+  agentId: string;
+  apiKey: string;
+  privateKey?: string;
 }
 
-export interface MCPResource {
-  uri: string;
-  name: string;
-  description?: string;
-  mimeType?: string;
-}
-
-// A2A (Agent-to-Agent)
-export interface A2AMessage {
-  id: string;
-  from: string;
-  to: string;
-  type: 'request' | 'response' | 'notification';
-  action: string;
-  payload: any;
-  timestamp: number;
-  ttl?: number;
-}
-
-export interface AgentCard {
-  id: string;
-  name: string;
-  capabilities: AgentCapabilities;
-  endpoint: string;
-  status: UserStatus;
-}
-
-// ACP (Agent Communication Protocol)
-export interface ACPWorkflow {
-  id: string;
-  name: string;
-  steps: ACPStep[];
-  variables: Record<string, any>;
-  timeout: number;
-  retryPolicy: {
-    maxRetries: number;
-    backoff: 'fixed' | 'exponential';
-  };
-}
-
-export interface ACPStep {
-  id: string;
-  type: 'task' | 'condition' | 'parallel' | 'loop';
-  agent?: string;
-  action: string;
-  input: any;
-  output?: string;
-  next?: string | string[];
-  condition?: {
-    if: string;
-    then: string;
-    else: string;
-  };
+export interface TaskEvaluation {
+  shouldBid: boolean;
+  estimatedTime?: number;
+  estimatedCost?: number;
+  proposal?: string;
 }
