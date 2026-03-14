@@ -1,8 +1,14 @@
-async function TasksPage() {
-  const response = await fetch('http://localhost:3000/api/v1/tasks', {
-    cache: 'no-store'
-  });
-  const data = await response.json();
+export default async function TasksPage() {
+  let data = { total: 0, tasks: [] };
+  
+  try {
+    const response = await fetch('http://localhost:3000/api/v1/tasks', {
+      cache: 'no-store'
+    });
+    data = await response.json();
+  } catch (error) {
+    console.error('Failed to fetch tasks:', error);
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -45,5 +51,3 @@ async function TasksPage() {
     </div>
   );
 }
-
-export default TasksPage;

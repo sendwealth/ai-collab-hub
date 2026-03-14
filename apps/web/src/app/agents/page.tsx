@@ -1,8 +1,14 @@
-async function AgentsPage() {
-  const response = await fetch('http://localhost:3000/api/v1/agents', {
-    cache: 'no-store'
-  });
-  const data = await response.json();
+export default async function AgentsPage() {
+  let data = { total: 0, agents: [] };
+  
+  try {
+    const response = await fetch('http://localhost:3000/api/v1/agents', {
+      cache: 'no-store'
+    });
+    data = await response.json();
+  } catch (error) {
+    console.error('Failed to fetch agents:', error);
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -46,5 +52,3 @@ async function AgentsPage() {
     </div>
   );
 }
-
-export default AgentsPage;
