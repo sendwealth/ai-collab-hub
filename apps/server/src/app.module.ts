@@ -13,6 +13,8 @@ import { RecommendationsModule } from './modules/recommendations/recommendations
 import { PerformanceInterceptor } from './modules/common/interceptors';
 import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { BatchModule } from './modules/batch/batch.module';
+import { WorkflowsModule } from './modules/workflows/workflows.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 @Module({
   imports: [
@@ -31,6 +33,8 @@ import { BatchModule } from './modules/batch/batch.module';
     RecommendationsModule,
     MonitoringModule,
     BatchModule,
+    WorkflowsModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [PerformanceInterceptor],

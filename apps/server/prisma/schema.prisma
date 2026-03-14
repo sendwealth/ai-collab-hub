@@ -397,24 +397,191 @@ model PriceHistory {
 model MarketTrend {
   id              String   @id @default(uuid())
   category        String
-  
+
   // Statistics
   totalTasks      Int      @default(0) @map("total_tasks")
   avgPrice        Int      @default(0) @map("avg_price")
   avgCompletionTime Int    @default(0) @map("avg_completion_time")
-  
+
   // Supply/Demand
   availableAgents Int      @default(0) @map("available_agents")
   openTasks       Int      @default(0) @map("open_tasks")
   ratio           Float    @default(0) // supply/demand ratio
-  
+
   // Period
   periodStart     DateTime @map("period_start")
   periodEnd       DateTime @map("period_end")
-  
+
   updatedAt       DateTime @updatedAt @map("updated_at")
-  
+
   @@index([category])
   @@index([periodStart])
   @@map("market_trends")
+}
+
+// ============================================
+// Phase 4: Workflow Engine Models
+// ============================================
+
+// Workflow Template
+model WorkflowTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  category    String   // data-processing, content-creation, code-review, analysis
+  version     String   @default("1.0.0")
+
+  // Workflow definition (JSON)
+  definition  String   // JSON string with nodes and edges
+
+  // Metadata
+  tags        String?  // JSON string array
+  author      String?
+  isActive    Boolean  @default(true)
+
+  // Statistics
+  usageCount  Int      @default(0) @map("usage_count")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  instances   WorkflowInstance[]
+
+  @@index([category])
+  @@index([isActive])
+  @@map("workflow_templates")
+}
+
+// Workflow Instance
+model WorkflowInstance {
+  id           String   @id @default(uuid())
+
+  // Relations
+  templateId   String   @map("template_id")
+  template     WorkflowTemplate @relation(fields: [templateId], references: [id])
+
+  taskId       String?  @map("task_id")
+
+  // Status
+  status       String   @default("pending") // pending, running, paused, completed, failed, cancelled
+
+  // Execution context
+  context      String   // JSON string with workflow variables
+  currentNode  String?  @map("current_node") // Current executing node ID
+
+  // Timing
+  startedAt    DateTime? @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+
+  // Error tracking
+  errorMessage String?  @map("error_message")
+  retryCount   Int      @default(0) @map("retry_count")
+
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  nodeExecutions WorkflowNodeExecution[]
+
+  @@index([templateId])
+  @@index([taskId])
+  @@index([status])
+  @@map("workflow_instances")
+}
+
+// Workflow Node Execution
+model WorkflowNodeExecution {
+  id         String   @id @default(uuid())
+
+  // Relations
+  instanceId String   @map("instance_id")
+  instance   WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  // Node details
+  nodeId     String   @map("node_id") // Node ID from workflow definition
+  nodeType   String   @map("node_type") // start, end, task, condition, parallel, delay, loop
+
+  // Execution status
+  status     String   @default("pending") // pending, running, completed, failed, skipped
+
+  // Input/Output
+  input      String?  // JSON string
+  output     String?  // JSON string
+
+  // Error handling
+  error      String?
+  retryCount Int      @default(0) @map("retry_count")
+
+  // Timing
+  startedAt  DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  duration   Int?     // milliseconds
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([instanceId])
+  @@index([nodeId])
+  @@index([status])
+  @@map("workflow_node_executions")
+}
+
+// Analytics Dashboard Data
+model DashboardMetric {
+  id          String   @id @default(uuid())
+  type        String   // active_agents, tasks_completed, revenue, user_growth
+
+  // Metric value
+  value       Float
+  change      Float?   // Percentage change from previous period
+  trend       String?  // up, down, stable
+
+  // Period
+  period      String   // hour, day, week, month
+  timestamp   DateTime @map("timestamp")
+
+  // Metadata
+  metadata    String?  // JSON string for additional data
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([type])
+  @@index([period])
+  @@index([timestamp])
+  @@map("dashboard_metrics")
+}
+
+// Audit Log (for security and compliance)
+model AuditLog {
+  id          String   @id @default(uuid())
+
+  // Who
+  agentId     String?  @map("agent_id")
+  userId      String?  @map("user_id") // For future human users
+
+  // What
+  action      String   // create, update, delete, execute, etc.
+  resource    String   // agent, task, workflow, etc.
+  resourceId  String?  @map("resource_id")
+
+  // Details
+  changes     String?  // JSON string with before/after values
+  metadata    String?  // JSON string for additional context
+
+  // Context
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+
+  // Result
+  success     Boolean  @default(true)
+  errorMessage String? @map("error_message")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([agentId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
