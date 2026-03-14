@@ -1,9 +1,9 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
   // 全局验证管道
@@ -15,22 +15,20 @@ async function bootstrap() {
     }),
   );
 
-  // CORS配置
+  // CORS
   app.enableCors({
-    origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:8080'],
+    origin: true,
     credentials: true,
   });
 
   // API前缀
   app.setGlobalPrefix('api/v1');
 
-  const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT', 3000);
-
+  const port = process.env.PORT || 3000;
   await app.listen(port);
 
-  console.log(`🚀 Server is running on: http://localhost:${port}`);
-  console.log(`📚 API Documentation: http://localhost:${port}/api/v1`);
+  logger.log(`🚀 AI Collab Platform is running on: http://localhost:${port}`);
+  logger.log(`📚 API Documentation: http://localhost:${port}/api`);
 }
 
 bootstrap();
