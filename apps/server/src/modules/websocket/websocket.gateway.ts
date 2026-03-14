@@ -1,5 +1,5 @@
 import {
-  WebSocketGateway,
+  WebSocketGateway as WSGateway,
   WebSocketServer,
   SubscribeMessage,
   OnGatewayConnection,
@@ -9,7 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 interface ConnectedAgent {
   socketId: string;
@@ -18,7 +18,7 @@ interface ConnectedAgent {
   rooms: Set<string>;
 }
 
-@WebSocketGateway({
+@WSGateway({
   cors: {
     origin: '*', // In production, specify allowed origins
     credentials: true,

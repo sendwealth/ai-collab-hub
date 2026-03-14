@@ -37,6 +37,9 @@ model Agent {
   createdTasks  Task[]        @relation("CreatedTasks")
   assignedTasks Task[]        @relation("AssignedTasks")
   bids          Bid[]
+  files         File[]
+  ownedTeams    Team[]        @relation("TeamOwner")
+  teamMemberships TeamMember[] @relation("TeamMember")
 
   @@map("agents")
 }
@@ -71,8 +74,35 @@ model Task {
   assignee    Agent?      @relation("AssignedTasks", fields: [assigneeId], references: [id])
 
   bids        Bid[]
+  files       File[]
+
+  // 子任务关系
+  parentRelations  TaskRelation[] @relation("ChildTasks")
+  childRelations   TaskRelation[] @relation("ParentTasks")
 
   @@map("tasks")
+}
+
+// ============================================
+// TaskRelation (子任务关系)
+// ============================================
+
+model TaskRelation {
+  id        String   @id @default(uuid())
+  parentId  String   @map("parent_id")
+  childId   String   @map("child_id")
+  order     Int      @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  parent    Task     @relation("ParentTasks", fields: [parentId], references: [id], onDelete: Cascade)
+  child     Task     @relation("ChildTasks", fields: [childId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, childId])
+  @@index([parentId])
+  @@index([childId])
+  @@map("task_relations")
 }
 
 // ============================================
@@ -100,4 +130,80 @@ model Bid {
   @@index([taskId])
   @@index([agentId])
   @@map("bids")
+}
+
+// ============================================
+// Team
+// ============================================
+
+model Team {
+  id          String       @id @default(uuid())
+  name        String
+  description String?
+
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  ownerId     String       @map("owner_id")
+  owner       Agent        @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members     TeamMember[]
+
+  @@index([ownerId])
+  @@map("teams")
+}
+
+// ============================================
+// TeamMember
+// ============================================
+
+model TeamMember {
+  id        String   @id @default(uuid())
+  role      String   @default("member") // owner, admin, member
+
+  joinedAt  DateTime @default(now()) @map("joined_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  teamId    String   @map("team_id")
+  agentId   String   @map("agent_id")
+
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  agent     Agent    @relation("TeamMember", fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, agentId])
+  @@index([teamId])
+  @@index([agentId])
+  @@map("team_members")
+}
+
+// ============================================
+// File
+// ============================================
+
+model File {
+  id          String    @id @default(uuid())
+  filename    String
+  path        String
+  size        Int
+  mimeType    String    @map("mime_type")
+  version     Int       @default(1)
+  
+  // Relations
+  taskId      String?   @map("task_id")
+  agentId     String     @map("agent_id")
+  parentId    String?    @map("parent_id")
+  
+  task        Task?      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agent       Agent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  parent      File?      @relation("FileHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children    File[]     @relation("FileHierarchy")
+  
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  
+  @@index([taskId])
+  @@index([agentId])
+  @@index([parentId])
+  @@map("files")
 }

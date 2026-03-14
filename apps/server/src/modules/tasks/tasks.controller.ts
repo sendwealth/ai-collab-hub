@@ -2,24 +2,53 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { TasksService } from './tasks.service';
+import { SubtasksService } from './subtasks.service';
+import { PricingService } from './pricing.service';
 import {
   CreateTaskDto,
   BidTaskDto,
   SubmitTaskDto,
   TaskQueryDto,
+  GetPricingDto,
+  GetMarketPriceDto,
+  CreateSubtaskDto,
+  UpdateSubtaskOrderDto,
 } from './dto';
 import { AgentAuthGuard } from '../auth/guards/agent-auth.guard';
 import { Agent } from '../auth/decorators/agent.decorator';
 
 @Controller('tasks')
 export class TasksController {
-  constructor(private readonly tasksService: TasksService) {}
+  constructor(
+    private readonly tasksService: TasksService,
+    private readonly subtasksService: SubtasksService,
+    private readonly pricingService: PricingService,
+  ) {}
+
+  /**
+   * POST /api/v1/tasks/pricing
+   * 获取价格建议
+   */
+  @Post('pricing')
+  async getPricing(@Body() getPricingDto: GetPricingDto) {
+    return this.pricingService.suggestPrice(getPricingDto);
+  }
+
+  /**
+   * GET /api/v1/tasks/pricing/market
+   * 获取市场价格参考
+   */
+  @Get('pricing/market')
+  async getMarketPrice(@Query() query: GetMarketPriceDto) {
+    return this.pricingService.getMarketPrice(query);
+  }
 
   /**
    * POST /api/v1/tasks
@@ -120,5 +149,88 @@ export class TasksController {
     @Body('rating') rating?: number,
   ) {
     return this.tasksService.completeTask(taskId, agentId, { rating });
+  }
+
+  // ============================================
+  // 子任务相关端点
+  // ============================================
+
+  /**
+   * POST /api/v1/tasks/:id/subtasks
+   * 创建子任务
+   */
+  @Post(':id/subtasks')
+  @UseGuards(AgentAuthGuard)
+  async createSubtask(
+    @Agent('id') agentId: string,
+    @Param('id') taskId: string,
+    @Body() createSubtaskDto: CreateSubtaskDto,
+  ) {
+    return this.subtasksService.createSubtask(taskId, agentId, createSubtaskDto);
+  }
+
+  /**
+   * GET /api/v1/tasks/:id/subtasks
+   * 获取子任务列表
+   */
+  @Get(':id/subtasks')
+  async getSubtasks(@Param('id') taskId: string) {
+    return this.subtasksService.getSubtasks(taskId);
+  }
+
+  /**
+   * DELETE /api/v1/tasks/:id/subtasks/:childId
+   * 删除子任务关系
+   */
+  @Delete(':id/subtasks/:childId')
+  @UseGuards(AgentAuthGuard)
+  async removeSubtask(
+    @Agent('id') agentId: string,
+    @Param('id') parentId: string,
+    @Param('childId') childId: string,
+  ) {
+    return this.subtasksService.removeSubtask(parentId, childId, agentId);
+  }
+
+  /**
+   * GET /api/v1/tasks/:id/tree
+   * 获取任务树
+   */
+  @Get(':id/tree')
+  async getTaskTree(
+    @Param('id') taskId: string,
+    @Query('maxDepth') maxDepth?: string,
+  ) {
+    return this.subtasksService.getTaskTree(
+      taskId,
+      maxDepth ? parseInt(maxDepth, 10) : 10,
+    );
+  }
+
+  /**
+   * GET /api/v1/tasks/:id/progress
+   * 获取任务进度
+   */
+  @Get(':id/progress')
+  async getTaskProgress(@Param('id') taskId: string) {
+    return this.subtasksService.calculateProgress(taskId);
+  }
+
+  /**
+   * POST /api/v1/tasks/:id/subtasks/reorder
+   * 更新子任务顺序
+   */
+  @Post(':id/subtasks/reorder')
+  @UseGuards(AgentAuthGuard)
+  async updateSubtaskOrder(
+    @Agent('id') agentId: string,
+    @Param('id') taskId: string,
+    @Body() updateOrderDto: UpdateSubtaskOrderDto,
+  ) {
+    return this.subtasksService.updateSubtaskOrder(
+      taskId,
+      agentId,
+      updateOrderDto.orders,
+    );
   }
 }

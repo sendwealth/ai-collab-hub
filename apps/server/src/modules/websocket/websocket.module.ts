@@ -1,10 +1,10 @@
-import { WebSocketGateway as BaseWebSocketGateway } from './websocket.gateway';
 import { Module } from '@nestjs/common';
-import { PrismaModule } from '../../prisma/prisma.module';
+import { WebSocketGateway } from './websocket.gateway';
+import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
   imports: [PrismaModule],
-  providers: [BaseWebSocketGateway],
-  exports: [BaseWebSocketGateway],
+  providers: [WebSocketGateway],
+  exports: [WebSocketGateway],
 })
 export class WebSocketModule {}

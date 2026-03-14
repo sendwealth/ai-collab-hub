@@ -16,7 +16,7 @@ export class CreateCreditDto {
 export class DepositDto {
   @IsInt()
   @Min(1)
-  amount: number;
+  amount!: number;
 
   @IsOptional()
   @IsString()
@@ -26,7 +26,7 @@ export class DepositDto {
 export class WithdrawDto {
   @IsInt()
   @Min(1)
-  amount: number;
+  amount!: number;
 
   @IsOptional()
   @IsString()
@@ -35,11 +35,11 @@ export class WithdrawDto {
 
 export class TransferDto {
   @IsString()
-  toAgentId: string;
+  toAgentId!: string;
 
   @IsInt()
   @Min(1)
-  amount: number;
+  amount!: number;
 
   @IsOptional()
   @IsString()
