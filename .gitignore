@@ -8,6 +8,12 @@ dist
 .next
 build
 *.tsbuildinfo
+**/src/**/*.js
+**/src/**/*.js.map
+**/src/**/*.d.ts
+**/src/**/*.d.ts.map
+!**/jest.config.js
+!**/.eslintrc.js
 
 # Environment
 .env
