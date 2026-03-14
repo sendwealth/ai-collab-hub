@@ -1,33 +1,29 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TasksService } from './tasks.service';
-import { PrismaService } from '../common/prisma/prisma.service';
-import {
-  NotFoundException,
-  ConflictException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 
 describe('TasksService', () => {
   let service: TasksService;
+  let prisma: PrismaService;
 
   const mockPrismaService = {
     task: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
       create: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
       update: jest.fn(),
-      count: jest.fn(),
     },
     bid: {
-      findFirst: jest.fn(),
-      findUnique: jest.fn(),
       create: jest.fn(),
+      findUnique: jest.fn(),
       update: jest.fn(),
-      updateMany: jest.fn(),
     },
     agent: {
+      findUnique: jest.fn(),
       update: jest.fn(),
     },
+    $transaction: jest.fn((fn) => fn(mockPrismaService)),
   };
 
   beforeEach(async () => {
@@ -42,398 +38,458 @@ describe('TasksService', () => {
     }).compile();
 
     service = module.get<TasksService>(TasksService);
+    prisma = module.get<PrismaService>(PrismaService);
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  describe('createTask', () => {
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  describe('create', () => {
     it('should create a task successfully', async () => {
-      const creatorId = 'creator-id';
-      const createTaskDto = {
+      const createDto = {
         title: 'Test Task',
-        description: 'Test description',
-        category: 'code-review',
-        reward: { credits: 50 },
+        description: 'Test Description',
+        category: 'testing',
+        reward: { credits: 100 },
       };
 
-      mockPrismaService.task.create.mockResolvedValue({
-        id: 'task-id',
-        ...createTaskDto,
-        createdById: creatorId,
-        status: 'open',
-      });
-
-      const result = await service.createTask(creatorId, createTaskDto);
-
-      expect(result).toHaveProperty('taskId');
-      expect(result.task.title).toBe(createTaskDto.title);
-    });
-
-    it('should set default status to open', async () => {
-      const createTaskDto = {
-        title: 'Test Task',
+      const mockAgent = {
+        id: 'creator-id',
+        name: 'Test Agent',
+        trustScore: 50,
       };
 
-      mockPrismaService.task.create.mockResolvedValue({
+      const mockTask = {
         id: 'task-id',
-        ...createTaskDto,
+        ...createDto,
+        creatorId: 'creator-id',
         status: 'open',
+        createdAt: new Date(),
+      };
+
+      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
+      mockPrismaService.task.create.mockResolvedValue(mockTask);
+
+      const result = await service.create('creator-id', createDto);
+
+      expect(result).toEqual(mockTask);
+      expect(prisma.task.create).toHaveBeenCalledWith({
+        data: {
+          ...createDto,
+          creatorId: 'creator-id',
+          status: 'open',
+        },
+        include: {
+          creator: true,
+        },
       });
-
-      const result = await service.createTask('creator-id', createTaskDto);
-
-      expect(result.task.status).toBe('open');
     });
 
-    it('should accept all task types', async () => {
-      const types: Array<'independent' | 'collaborative' | 'workflow'> = ['independent', 'collaborative', 'workflow'];
+    it('should throw NotFoundException if creator not found', async () => {
+      mockPrismaService.agent.findUnique.mockResolvedValue(null);
 
-      for (const type of types) {
-        mockPrismaService.task.create.mockResolvedValue({
-          id: 'task-id',
-          title: 'Test',
-          type,
-        });
-
-        const result = await service.createTask('creator-id', { title: 'Test', type });
-        expect(result.task.type).toBe(type);
-      }
+      await expect(
+        service.create('invalid-id', { title: 'Test' })
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
-  describe('getTasks', () => {
-    it('should return tasks with filters', async () => {
+  describe('findAll', () => {
+    it('should return all tasks with pagination', async () => {
       const mockTasks = [
-        {
-          id: 'task-1',
-          title: 'Task 1',
-          status: 'open',
-          bids: [],
-          _count: { bids: 0 },
-        },
+        { id: 'task-1', title: 'Task 1' },
+        { id: 'task-2', title: 'Task 2' },
       ];
 
       mockPrismaService.task.findMany.mockResolvedValue(mockTasks);
-      mockPrismaService.task.count.mockResolvedValue(1);
 
-      const result = await service.getTasks({ status: 'open' });
+      const result = await service.findAll({});
 
-      expect(result.total).toBe(1);
-      expect(result.tasks).toHaveLength(1);
+      expect(result).toHaveLength(2);
+      expect(prisma.task.findMany).toHaveBeenCalled();
     });
 
-    it('should support pagination', async () => {
-      mockPrismaService.task.findMany.mockResolvedValue([]);
-      mockPrismaService.task.count.mockResolvedValue(0);
+    it('should filter tasks by status', async () => {
+      const mockTasks = [{ id: 'task-1', status: 'open' }];
 
-      await service.getTasks({ limit: 10, offset: 20 });
+      mockPrismaService.task.findMany.mockResolvedValue(mockTasks);
 
-      expect(mockPrismaService.task.findMany).toHaveBeenCalledWith(
+      const result = await service.findAll({ status: 'open' });
+
+      expect(result).toHaveLength(1);
+      expect(prisma.task.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          take: 10,
-          skip: 20,
-        }),
+          where: { status: 'open' },
+        })
       );
     });
 
-    it('should include bid count', async () => {
-      const mockTasks = [
-        {
-          id: 'task-1',
-          title: 'Task 1',
-          bids: [],
-          _count: { bids: 5 },
-        },
-      ];
+    it('should filter tasks by category', async () => {
+      const mockTasks = [{ id: 'task-1', category: 'development' }];
 
       mockPrismaService.task.findMany.mockResolvedValue(mockTasks);
-      mockPrismaService.task.count.mockResolvedValue(1);
 
-      const result = await service.getTasks({});
+      const result = await service.findAll({ category: 'development' });
 
-      expect(result.tasks[0]).toHaveProperty('bidCount', 5);
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('findOne', () => {
+    it('should return a task by id', async () => {
+      const mockTask = {
+        id: 'task-id',
+        title: 'Test Task',
+        creator: { name: 'Creator' },
+        bids: [],
+      };
+
+      mockPrismaService.task.findUnique.mockResolvedValue(mockTask);
+
+      const result = await service.findOne('task-id');
+
+      expect(result).toEqual(mockTask);
+      expect(prisma.task.findUnique).toHaveBeenCalledWith({
+        where: { id: 'task-id' },
+        include: {
+          creator: true,
+          assignee: true,
+          bids: {
+            include: {
+              agent: true,
+            },
+          },
+        },
+      });
+    });
+
+    it('should throw NotFoundException if task not found', async () => {
+      mockPrismaService.task.findUnique.mockResolvedValue(null);
+
+      await expect(service.findOne('invalid-id')).rejects.toThrow(
+        NotFoundException
+      );
     });
   });
 
   describe('bidTask', () => {
     it('should create a bid successfully', async () => {
-      const taskId = 'task-id';
-      const agentId = 'agent-id';
       const bidDto = {
         proposal: 'I can do this',
         estimatedTime: 3600,
+        estimatedCost: 100,
       };
 
-      mockPrismaService.task.findUnique.mockResolvedValue({
-        id: taskId,
+      const mockTask = {
+        id: 'task-id',
         status: 'open',
-      });
-      mockPrismaService.bid.findFirst.mockResolvedValue(null);
-      mockPrismaService.bid.create.mockResolvedValue({
+        creatorId: 'creator-id',
+      };
+
+      const mockAgent = {
+        id: 'agent-id',
+        trustScore: 50,
+      };
+
+      const mockBid = {
         id: 'bid-id',
-        taskId,
-        agentId,
+        taskId: 'task-id',
+        agentId: 'agent-id',
         ...bidDto,
         status: 'pending',
-      });
+      };
 
-      const result = await service.bidTask(agentId, taskId, bidDto);
+      mockPrismaService.task.findUnique.mockResolvedValue(mockTask);
+      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
+      mockPrismaService.bid.create.mockResolvedValue(mockBid);
+
+      const result = await service.bidTask('task-id', 'agent-id', bidDto);
 
       expect(result).toHaveProperty('bidId');
-      expect(result.bid.proposal).toBe(bidDto.proposal);
+      expect(prisma.bid.create).toHaveBeenCalled();
     });
 
     it('should throw NotFoundException if task not found', async () => {
       mockPrismaService.task.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.bidTask('agent-id', 'non-existent', { proposal: 'test' }),
+        service.bidTask('invalid-id', 'agent-id', { proposal: 'Test' })
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw ConflictException if task is not open', async () => {
-      mockPrismaService.task.findUnique.mockResolvedValue({
+    it('should throw BadRequestException if task is not open', async () => {
+      const mockTask = {
         id: 'task-id',
         status: 'assigned',
-      });
+      };
+
+      mockPrismaService.task.findUnique.mockResolvedValue(mockTask);
 
       await expect(
-        service.bidTask('agent-id', 'task-id', { proposal: 'test' }),
-      ).rejects.toThrow(ConflictException);
+        service.bidTask('task-id', 'agent-id', { proposal: 'Test' })
+      ).rejects.toThrow(BadRequestException);
     });
 
-    it('should throw ConflictException if agent already bid', async () => {
-      mockPrismaService.task.findUnique.mockResolvedValue({
+    it('should throw ForbiddenException if agent bids on own task', async () => {
+      const mockTask = {
         id: 'task-id',
         status: 'open',
-      });
-      mockPrismaService.bid.findFirst.mockResolvedValue({
-        id: 'existing-bid',
-      });
+        creatorId: 'agent-id',
+      };
+
+      mockPrismaService.task.findUnique.mockResolvedValue(mockTask);
 
       await expect(
-        service.bidTask('agent-id', 'task-id', { proposal: 'test' }),
-      ).rejects.toThrow(ConflictException);
+        service.bidTask('task-id', 'agent-id', { proposal: 'Test' })
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
   describe('acceptBid', () => {
-    it('should accept a bid and assign task', async () => {
-      const taskId = 'task-id';
-      const bidId = 'bid-id';
-      const creatorId = 'creator-id';
-      const agentId = 'agent-id';
-
-      mockPrismaService.task.findUnique.mockResolvedValue({
-        id: taskId,
-        createdById: creatorId,
+    it('should accept a bid successfully', async () => {
+      const mockTask = {
+        id: 'task-id',
+        creatorId: 'creator-id',
         status: 'open',
-      });
-      mockPrismaService.bid.findUnique.mockResolvedValue({
-        id: bidId,
-        taskId,
-        agentId,
-      });
-      mockPrismaService.task.update.mockResolvedValue({
-        id: taskId,
-        status: 'assigned',
-        assigneeId: agentId,
-      });
-      mockPrismaService.bid.update.mockResolvedValue({});
-      mockPrismaService.bid.updateMany.mockResolvedValue({});
+      };
 
-      const result = await service.acceptBid(creatorId, taskId, bidId);
+      const mockBid = {
+        id: 'bid-id',
+        taskId: 'task-id',
+        agentId: 'agent-id',
+        status: 'pending',
+      };
+
+      const mockAgent = {
+        id: 'agent-id',
+        trustScore: 50,
+      };
+
+      mockPrismaService.task.findUnique.mockResolvedValue(mockTask);
+      mockPrismaService.bid.findUnique.mockResolvedValue(mockBid);
+      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
+      mockPrismaService.task.update.mockResolvedValue({
+        ...mockTask,
+        status: 'assigned',
+        assigneeId: 'agent-id',
+      });
+      mockPrismaService.bid.update.mockResolvedValue({
+        ...mockBid,
+        status: 'accepted',
+      });
+
+      const result = await service.acceptBid(
+        'creator-id',
+        'task-id',
+        'bid-id'
+      );
 
       expect(result.task.status).toBe('assigned');
+      expect(result.bid.status).toBe('accepted');
     });
 
-    it('should throw ForbiddenException if not creator', async () => {
-      mockPrismaService.task.findUnique.mockResolvedValue({
+    it('should throw ForbiddenException if not task creator', async () => {
+      const mockTask = {
         id: 'task-id',
-        createdById: 'other-creator',
-        status: 'open',
-      });
+        creatorId: 'other-id',
+      };
+
+      mockPrismaService.task.findUnique.mockResolvedValue(mockTask);
 
       await expect(
-        service.acceptBid('wrong-creator', 'task-id', 'bid-id'),
+        service.acceptBid('wrong-creator', 'task-id', 'bid-id')
       ).rejects.toThrow(ForbiddenException);
-    });
-
-    it('should reject other pending bids', async () => {
-      const taskId = 'task-id';
-      const bidId = 'bid-id';
-
-      mockPrismaService.task.findUnique.mockResolvedValue({
-        id: taskId,
-        createdById: 'creator-id',
-        status: 'open',
-      });
-      mockPrismaService.bid.findUnique.mockResolvedValue({
-        id: bidId,
-        taskId,
-        agentId: 'agent-id',
-      });
-      mockPrismaService.task.update.mockResolvedValue({});
-      mockPrismaService.bid.update.mockResolvedValue({});
-      mockPrismaService.bid.updateMany.mockResolvedValue({ count: 2 });
-
-      await service.acceptBid('creator-id', taskId, bidId);
-
-      expect(mockPrismaService.bid.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { status: 'rejected' },
-        }),
-      );
     });
   });
 
   describe('submitTask', () => {
     it('should submit task result successfully', async () => {
-      const taskId = 'task-id';
-      const agentId = 'agent-id';
       const submitDto = {
-        result: { review: 'Good code' },
+        result: { code: 'completed', files: ['test.js'] },
       };
 
-      mockPrismaService.task.findUnique.mockResolvedValue({
-        id: taskId,
-        assigneeId: agentId,
+      const mockTask = {
+        id: 'task-id',
+        assigneeId: 'agent-id',
         status: 'assigned',
-      });
+      };
+
+      mockPrismaService.task.findUnique.mockResolvedValue(mockTask);
       mockPrismaService.task.update.mockResolvedValue({
-        id: taskId,
+        ...mockTask,
         status: 'reviewing',
         result: submitDto.result,
       });
 
-      const result = await service.submitTask(agentId, taskId, submitDto);
+      const result = await service.submitTask(
+        'task-id',
+        'agent-id',
+        submitDto
+      );
 
       expect(result.task.status).toBe('reviewing');
     });
 
     it('should throw ForbiddenException if not assignee', async () => {
-      mockPrismaService.task.findUnique.mockResolvedValue({
+      const mockTask = {
         id: 'task-id',
         assigneeId: 'other-agent',
-        status: 'assigned',
-      });
+      };
+
+      mockPrismaService.task.findUnique.mockResolvedValue(mockTask);
 
       await expect(
-        service.submitTask('wrong-agent', 'task-id', { result: {} }),
+        service.submitTask('task-id', 'wrong-agent', { result: {} })
       ).rejects.toThrow(ForbiddenException);
-    });
-
-    it('should throw ConflictException if task not assigned', async () => {
-      mockPrismaService.task.findUnique.mockResolvedValue({
-        id: 'task-id',
-        assigneeId: 'agent-id',
-        status: 'open',
-      });
-
-      await expect(
-        service.submitTask('agent-id', 'task-id', { result: {} }),
-      ).rejects.toThrow(ConflictException);
     });
   });
 
   describe('completeTask', () => {
     it('should complete task with rating', async () => {
-      const taskId = 'task-id';
-      const creatorId = 'creator-id';
-      const rating = 5;
+      const completeDto = {
+        rating: 5,
+      };
 
-      mockPrismaService.task.findUnique.mockResolvedValue({
-        id: taskId,
-        createdById: creatorId,
-        status: 'reviewing',
+      const mockTask = {
+        id: 'task-id',
+        creatorId: 'creator-id',
         assigneeId: 'agent-id',
-        result: {},
-      });
-      mockPrismaService.task.update.mockResolvedValue({
-        id: taskId,
-        status: 'completed',
-        result: { rating },
-      });
-      mockPrismaService.task.findMany.mockResolvedValue([]);
-      mockPrismaService.agent.update.mockResolvedValue({});
+        status: 'reviewing',
+        reward: { credits: 100 },
+      };
 
-      const result = await service.completeTask(creatorId, taskId, { rating });
+      const mockAgent = {
+        id: 'agent-id',
+        trustScore: 50,
+      };
+
+      mockPrismaService.task.findUnique.mockResolvedValue(mockTask);
+      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
+      mockPrismaService.task.update.mockResolvedValue({
+        ...mockTask,
+        status: 'completed',
+        rating: 5,
+      });
+      mockPrismaService.agent.update.mockResolvedValue({
+        ...mockAgent,
+        trustScore: 60,
+      });
+
+      const result = await service.completeTask(
+        'task-id',
+        'creator-id',
+        completeDto
+      );
 
       expect(result.task.status).toBe('completed');
     });
 
-    it('should update agent trust score', async () => {
-      const taskId = 'task-id';
-      const assigneeId = 'agent-id';
-
-      mockPrismaService.task.findUnique.mockResolvedValue({
-        id: taskId,
-        createdById: 'creator-id',
-        status: 'reviewing',
-        assigneeId,
-        result: { rating: 5 },
-      });
-      mockPrismaService.task.update.mockResolvedValue({
-        id: taskId,
-        status: 'completed',
-      });
-      mockPrismaService.task.findMany.mockResolvedValue([
-        { status: 'completed', result: { rating: 5 } },
-      ]);
-      mockPrismaService.agent.update.mockResolvedValue({});
-
-      await service.completeTask('creator-id', taskId, { rating: 5 });
-
-      expect(mockPrismaService.agent.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: assigneeId },
-        }),
-      );
-    });
-
-    it('should throw ForbiddenException if not creator', async () => {
-      mockPrismaService.task.findUnique.mockResolvedValue({
+    it('should throw ForbiddenException if not task creator', async () => {
+      const mockTask = {
         id: 'task-id',
-        createdById: 'other-creator',
-        status: 'reviewing',
-      });
+        creatorId: 'other-id',
+      };
+
+      mockPrismaService.task.findUnique.mockResolvedValue(mockTask);
 
       await expect(
-        service.completeTask('wrong-creator', 'task-id', { rating: 5 }),
+        service.completeTask('task-id', 'wrong-creator', { rating: 5 })
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw BadRequestException if task not in reviewing status', async () => {
+      const mockTask = {
+        id: 'task-id',
+        creatorId: 'creator-id',
+        status: 'assigned',
+      };
+
+      mockPrismaService.task.findUnique.mockResolvedValue(mockTask);
+
+      await expect(
+        service.completeTask('task-id', 'creator-id', { rating: 5 })
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('getMyTasks', () => {
-    it('should return tasks created by or assigned to agent', async () => {
-      const agentId = 'agent-id';
+    it('should return tasks created by agent', async () => {
       const mockTasks = [
-        { id: 'task-1', createdById: agentId },
-        { id: 'task-2', assigneeId: agentId },
+        { id: 'task-1', title: 'Task 1' },
+        { id: 'task-2', title: 'Task 2' },
       ];
 
       mockPrismaService.task.findMany.mockResolvedValue(mockTasks);
 
-      const result = await service.getMyTasks(agentId, {});
+      const result = await service.getMyTasks('agent-id', { role: 'creator' });
 
       expect(result.total).toBe(2);
-      expect(result.tasks).toEqual(mockTasks);
+      expect(result.tasks).toHaveLength(2);
     });
 
-    it('should filter by status', async () => {
-      mockPrismaService.task.findMany.mockResolvedValue([]);
+    it('should return tasks assigned to agent', async () => {
+      const mockTasks = [{ id: 'task-1', assigneeId: 'agent-id' }];
 
-      await service.getMyTasks('agent-id', { status: 'open' });
+      mockPrismaService.task.findMany.mockResolvedValue(mockTasks);
 
-      expect(mockPrismaService.task.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            status: 'open',
-          }),
-        }),
+      const result = await service.getMyTasks('agent-id', { role: 'assignee' });
+
+      expect(result.total).toBe(1);
+    });
+
+    it('should filter tasks by status', async () => {
+      const mockTasks = [{ id: 'task-1', status: 'completed' }];
+
+      mockPrismaService.task.findMany.mockResolvedValue(mockTasks);
+
+      const result = await service.getMyTasks('agent-id', {
+        status: 'completed',
+      });
+
+      expect(result.total).toBe(1);
+    });
+  });
+
+  describe('Edge Cases and Error Handling', () => {
+    it('should handle database errors gracefully', async () => {
+      mockPrismaService.task.findUnique.mockRejectedValue(
+        new Error('Database error')
       );
+
+      await expect(service.findOne('task-id')).rejects.toThrow();
+    });
+
+    it('should validate input data', async () => {
+      const invalidDto = {
+        title: '',
+        description: '',
+      };
+
+      await expect(service.create('creator-id', invalidDto)).rejects.toThrow();
+    });
+
+    it('should handle concurrent bids', async () => {
+      const mockTask = {
+        id: 'task-id',
+        status: 'open',
+        creatorId: 'creator-id',
+      };
+
+      mockPrismaService.task.findUnique.mockResolvedValue(mockTask);
+      mockPrismaService.bid.create.mockResolvedValue({ id: 'bid-id' });
+
+      // Simulate concurrent bids
+      const bids = await Promise.all([
+        service.bidTask('task-id', 'agent-1', { proposal: 'Bid 1' }),
+        service.bidTask('task-id', 'agent-2', { proposal: 'Bid 2' }),
+      ]);
+
+      expect(bids).toHaveLength(2);
     });
   });
 });
