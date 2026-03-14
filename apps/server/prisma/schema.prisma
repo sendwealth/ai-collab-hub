@@ -207,3 +207,24 @@ model File {
   @@index([parentId])
   @@map("files")
 }
+
+// ============================================
+// Notification
+// ============================================
+
+model Notification {
+  id          String    @id @default(uuid())
+  agentId     String    @map("agent_id")
+  type        String    // e.g., "task_assigned", "task_completed", "bid_accepted"
+  title       String
+  message     String
+  data        String?   // JSON string for additional data
+  read        Boolean   @default(false) @map("is_read")
+  
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  
+  @@index([agentId])
+  @@index([read])
+  @@map("notifications")
+}

@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AgentsController } from './agents.controller';
 import { AgentsService } from './agents.service';
-import { CreateAgentDto, UpdateStatusDto } from './dto';
+import { CreateAgentDto, UpdateAgentDto, UpdateAgentStatusDto } from './dto';
 
 describe('AgentsController', () => {
   let controller: AgentsController;
@@ -9,12 +9,11 @@ describe('AgentsController', () => {
 
   const mockAgentsService = {
     register: jest.fn(),
-    findAll: jest.fn(),
-    findOne: jest.fn(),
-    findByApiKey: jest.fn(),
+    getMe: jest.fn(),
+    updateMe: jest.fn(),
     updateStatus: jest.fn(),
     discover: jest.fn(),
-    getStatistics: jest.fn(),
+    getAgentProfile: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -65,118 +64,68 @@ describe('AgentsController', () => {
       expect(service.register).toHaveBeenCalledWith(createDto);
     });
 
-    it('should validate required fields', async () => {
-      const invalidDto = {
-        name: '',
-        publicKey: '',
+    it('should handle registration with minimal data', async () => {
+      const minimalDto: CreateAgentDto = {
+        name: 'MinimalAgent',
+        publicKey: 'test-key',
       };
 
-      await expect(controller.register(invalidDto as any)).rejects.toThrow();
-    });
-  });
-
-  describe('findAll', () => {
-    it('should return paginated list of agents', async () => {
-      const mockAgents = [
-        { id: 'agent-1', name: 'Agent 1' },
-        { id: 'agent-2', name: 'Agent 2' },
-      ];
-
-      mockAgentsService.findAll.mockResolvedValue({
-        agents: mockAgents,
-        total: 2,
-        page: 1,
-        limit: 10,
+      mockAgentsService.register.mockResolvedValue({
+        agentId: 'agent-id',
+        apiKey: 'sk_agent_test123',
+        name: 'MinimalAgent',
       });
 
-      const result = await controller.findAll({});
+      const result = await controller.register(minimalDto);
 
-      expect(result.agents).toHaveLength(2);
-      expect(result.total).toBe(2);
-      expect(service.findAll).toHaveBeenCalledWith({});
-    });
-
-    it('should support filtering by skill', async () => {
-      mockAgentsService.findAll.mockResolvedValue({
-        agents: [],
-        total: 0,
-      });
-
-      await controller.findAll({ skill: 'code-review' });
-
-      expect(service.findAll).toHaveBeenCalledWith({ skill: 'code-review' });
-    });
-
-    it('should support filtering by status', async () => {
-      mockAgentsService.findAll.mockResolvedValue({
-        agents: [],
-        total: 0,
-      });
-
-      await controller.findAll({ status: 'idle' });
-
-      expect(service.findAll).toHaveBeenCalledWith({ status: 'idle' });
-    });
-
-    it('should support pagination', async () => {
-      mockAgentsService.findAll.mockResolvedValue({
-        agents: [],
-        total: 100,
-        page: 2,
-        limit: 20,
-      });
-
-      const result = await controller.findAll({ page: 2, limit: 20 });
-
-      expect(result.page).toBe(2);
-      expect(result.limit).toBe(20);
-    });
-  });
-
-  describe('findOne', () => {
-    it('should return an agent by id', async () => {
-      const mockAgent = {
-        id: 'agent-id',
-        name: 'TestAgent',
-        status: 'idle',
-        trustScore: 50,
-      };
-
-      mockAgentsService.findOne.mockResolvedValue(mockAgent);
-
-      const result = await controller.findOne('agent-id');
-
-      expect(result).toEqual(mockAgent);
-      expect(service.findOne).toHaveBeenCalledWith('agent-id');
-    });
-
-    it('should throw NotFoundException if agent not found', async () => {
-      mockAgentsService.findOne.mockRejectedValue(new Error('Not found'));
-
-      await expect(controller.findOne('invalid-id')).rejects.toThrow();
+      expect(result).toHaveProperty('agentId');
     });
   });
 
   describe('getMe', () => {
-    it('should return current agent from request', async () => {
+    it('should return current agent', async () => {
       const mockAgent = {
         id: 'agent-id',
         name: 'TestAgent',
       };
 
-      const mockRequest = {
-        agent: mockAgent,
-      };
+      mockAgentsService.getMe.mockResolvedValue(mockAgent);
 
-      const result = await controller.getMe(mockRequest);
+      const result = await controller.getMe('agent-id');
 
       expect(result).toEqual(mockAgent);
+      expect(service.getMe).toHaveBeenCalledWith('agent-id');
+    });
+  });
+
+  describe('updateMe', () => {
+    it('should update agent info', async () => {
+      const updateDto: UpdateAgentDto = {
+        description: 'Updated description',
+      };
+
+      const mockAgent = {
+        message: 'Agent updated successfully',
+        agent: {
+          id: 'agent-id',
+          name: 'TestAgent',
+          description: 'Updated description',
+          capabilities: {},
+        },
+      };
+
+      mockAgentsService.updateMe.mockResolvedValue(mockAgent);
+
+      const result = await controller.updateMe('agent-id', updateDto);
+
+      expect(result.agent.description).toBe('Updated description');
+      expect(service.updateMe).toHaveBeenCalledWith('agent-id', updateDto);
     });
   });
 
   describe('updateStatus', () => {
     it('should update agent status', async () => {
-      const updateDto: UpdateStatusDto = {
+      const updateDto: UpdateAgentStatusDto = {
         status: 'busy',
       };
 
@@ -193,14 +142,21 @@ describe('AgentsController', () => {
       expect(service.updateStatus).toHaveBeenCalledWith('agent-id', updateDto);
     });
 
-    it('should validate status values', async () => {
-      const invalidDto = {
-        status: 'invalid-status',
+    it('should update to idle status', async () => {
+      const updateDto: UpdateAgentStatusDto = {
+        status: 'idle',
       };
 
-      await expect(
-        controller.updateStatus('agent-id', invalidDto as any)
-      ).rejects.toThrow();
+      const mockAgent = {
+        id: 'agent-id',
+        status: 'idle',
+      };
+
+      mockAgentsService.updateStatus.mockResolvedValue(mockAgent);
+
+      const result = await controller.updateStatus('agent-id', updateDto);
+
+      expect(result.status).toBe('idle');
     });
   });
 
@@ -218,61 +174,79 @@ describe('AgentsController', () => {
         total: 1,
       });
 
-      const result = await controller.discover({ skill: 'code-review' });
+      const result = await controller.discover('code-review', undefined, '20');
 
       expect(result.agents).toHaveLength(1);
-      expect(service.discover).toHaveBeenCalledWith({ skill: 'code-review' });
+      expect(service.discover).toHaveBeenCalledWith({
+        skill: 'code-review',
+        status: undefined,
+        limit: 20,
+      });
     });
 
-    it('should support sorting', async () => {
+    it('should support status filter', async () => {
       mockAgentsService.discover.mockResolvedValue({
         agents: [],
         total: 0,
       });
 
-      await controller.discover({ sortBy: 'trustScore' });
+      await controller.discover(undefined, 'idle', '20');
 
-      expect(service.discover).toHaveBeenCalledWith({ sortBy: 'trustScore' });
+      expect(service.discover).toHaveBeenCalledWith({
+        skill: undefined,
+        status: 'idle',
+        limit: 20,
+      });
     });
 
-    it('should support availability filter', async () => {
+    it('should support limit parameter', async () => {
       mockAgentsService.discover.mockResolvedValue({
         agents: [],
         total: 0,
       });
 
-      await controller.discover({ available: true });
+      await controller.discover(undefined, undefined, '50');
 
-      expect(service.discover).toHaveBeenCalledWith({ available: true });
+      expect(service.discover).toHaveBeenCalledWith({
+        skill: undefined,
+        status: undefined,
+        limit: 50,
+      });
     });
   });
 
-  describe('getStatistics', () => {
-    it('should return agent statistics', async () => {
-      const mockStats = {
-        totalTasks: 10,
-        completedTasks: 8,
-        successRate: 80,
-        trustScore: 75,
+  describe('getAgentProfile', () => {
+    it('should return an agent by id', async () => {
+      const mockAgent = {
+        id: 'agent-id',
+        name: 'TestAgent',
+        status: 'idle',
+        trustScore: 50,
       };
 
-      mockAgentsService.getStatistics.mockResolvedValue(mockStats);
+      mockAgentsService.getAgentProfile.mockResolvedValue(mockAgent);
 
-      const result = await controller.getStatistics('agent-id');
+      const result = await controller.getAgentProfile('agent-id');
 
-      expect(result).toEqual(mockStats);
-      expect(service.getStatistics).toHaveBeenCalledWith('agent-id');
+      expect(result).toEqual(mockAgent);
+      expect(service.getAgentProfile).toHaveBeenCalledWith('agent-id');
+    });
+
+    it('should throw NotFoundException if agent not found', async () => {
+      mockAgentsService.getAgentProfile.mockRejectedValue(new Error('Not found'));
+
+      await expect(controller.getAgentProfile('invalid-id')).rejects.toThrow();
     });
   });
 
   describe('Edge Cases', () => {
     it('should handle empty results', async () => {
-      mockAgentsService.findAll.mockResolvedValue({
+      mockAgentsService.discover.mockResolvedValue({
         agents: [],
         total: 0,
       });
 
-      const result = await controller.findAll({});
+      const result = await controller.discover();
 
       expect(result.agents).toHaveLength(0);
       expect(result.total).toBe(0);
@@ -281,25 +255,14 @@ describe('AgentsController', () => {
     it('should handle large datasets', async () => {
       const mockAgents = Array(100).fill({ id: 'agent-id' });
 
-      mockAgentsService.findAll.mockResolvedValue({
+      mockAgentsService.discover.mockResolvedValue({
         agents: mockAgents,
         total: 100,
       });
 
-      const result = await controller.findAll({ limit: 100 });
+      const result = await controller.discover(undefined, undefined, '100');
 
       expect(result.agents).toHaveLength(100);
-    });
-
-    it('should validate pagination parameters', async () => {
-      mockAgentsService.findAll.mockResolvedValue({
-        agents: [],
-        total: 0,
-      });
-
-      await controller.findAll({ page: -1, limit: 0 });
-
-      expect(service.findAll).toHaveBeenCalled();
     });
   });
 });

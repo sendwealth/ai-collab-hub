@@ -4,7 +4,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
 
 describe('PricingService', () => {
   let service: PricingService;
-  let prisma: PrismaService;
+  let prisma: any;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -23,7 +23,7 @@ describe('PricingService', () => {
     }).compile();
 
     service = module.get<PricingService>(PricingService);
-    prisma = module.get<PrismaService>(PrismaService);
+    prisma = module.get(PrismaService);
   });
 
   it('should be defined', () => {

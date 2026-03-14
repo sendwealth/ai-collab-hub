@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from './../src/app.module';
-import { PrismaService } from './../src/modules/common/prisma/prisma.service';
+// import { PrismaService } from './../src/modules/common/prisma/prisma.service';
 
 describe('Health Check (e2e)', () => {
   let app: INestApplication;

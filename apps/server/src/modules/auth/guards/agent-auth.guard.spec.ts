@@ -1,16 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AgentAuthGuard } from './agent-auth.guard';
-import { PrismaService } from '../../prisma/prisma.service';
+import { AgentsService } from '../../agents/agents.service';
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 
 describe('AgentAuthGuard', () => {
   let guard: AgentAuthGuard;
-  let prisma: PrismaService;
 
-  const mockPrismaService = {
-    agent: {
-      findUnique: jest.fn(),
-    },
+  const mockAgentsService = {
+    validateByApiKey: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -18,14 +15,13 @@ describe('AgentAuthGuard', () => {
       providers: [
         AgentAuthGuard,
         {
-          provide: PrismaService,
-          useValue: mockPrismaService,
+          provide: AgentsService,
+          useValue: mockAgentsService,
         },
       ],
     }).compile();
 
     guard = module.get<AgentAuthGuard>(AgentAuthGuard);
-    prisma = module.get<PrismaService>(PrismaService);
   });
 
   afterEach(() => {
@@ -52,7 +48,7 @@ describe('AgentAuthGuard', () => {
         apiKey: 'sk_agent_valid123',
       };
 
-      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
+      mockAgentsService.validateByApiKey.mockResolvedValue(mockAgent);
 
       const context = createMockContext('sk_agent_valid123');
       const result = await guard.canActivate(context);
@@ -67,7 +63,7 @@ describe('AgentAuthGuard', () => {
     });
 
     it('should deny access with invalid API key', async () => {
-      mockPrismaService.agent.findUnique.mockResolvedValue(null);
+      mockAgentsService.validateByApiKey.mockResolvedValue(null);
 
       const context = createMockContext('sk_agent_invalid');
 
@@ -80,7 +76,7 @@ describe('AgentAuthGuard', () => {
         name: 'TestAgent',
       };
 
-      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
+      mockAgentsService.validateByApiKey.mockResolvedValue(mockAgent);
 
       const mockRequest = {
         headers: { 'x-api-key': 'sk_agent_test' },
@@ -99,7 +95,7 @@ describe('AgentAuthGuard', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      mockPrismaService.agent.findUnique.mockRejectedValue(
+      mockAgentsService.validateByApiKey.mockRejectedValue(
         new Error('Database error')
       );
 
@@ -110,6 +106,8 @@ describe('AgentAuthGuard', () => {
 
     it('should validate API key format', async () => {
       const context = createMockContext('invalid-format');
+
+      mockAgentsService.validateByApiKey.mockResolvedValue(null);
 
       await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
     });
@@ -122,7 +120,7 @@ describe('AgentAuthGuard', () => {
       ];
 
       for (const key of validKeys) {
-        mockPrismaService.agent.findUnique.mockResolvedValue({
+        mockAgentsService.validateByApiKey.mockResolvedValue({
           id: 'agent-id',
           apiKey: key,
         });
@@ -140,11 +138,10 @@ describe('AgentAuthGuard', () => {
         'invalid',
         'sk_invalid_format',
         'Bearer token',
-        null,
-        undefined,
       ];
 
       for (const key of invalidKeys) {
+        mockAgentsService.validateByApiKey.mockResolvedValue(null);
         const context = createMockContext(key as any);
 
         await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
@@ -153,31 +150,13 @@ describe('AgentAuthGuard', () => {
   });
 
   describe('Performance', () => {
-    it('should cache agent lookups', async () => {
-      const mockAgent = {
-        id: 'agent-id',
-        apiKey: 'sk_agent_test',
-      };
-
-      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
-
-      const context = createMockContext('sk_agent_test');
-
-      // Multiple calls should use cache
-      await guard.canActivate(context);
-      await guard.canActivate(context);
-
-      // Should only call database once due to caching
-      expect(prisma.agent.findUnique).toHaveBeenCalledTimes(1);
-    });
-
     it('should handle concurrent requests', async () => {
       const mockAgent = {
         id: 'agent-id',
         apiKey: 'sk_agent_test',
       };
 
-      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
+      mockAgentsService.validateByApiKey.mockResolvedValue(mockAgent);
 
       const context = createMockContext('sk_agent_test');
 

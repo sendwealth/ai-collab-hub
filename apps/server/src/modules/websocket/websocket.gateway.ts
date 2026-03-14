@@ -9,7 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../common/prisma/prisma.service';
 
 interface ConnectedAgent {
   socketId: string;
@@ -27,7 +27,7 @@ interface ConnectedAgent {
 })
 export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   private readonly logger = new Logger(WebSocketGateway.name);
   private connectedAgents: Map<string, ConnectedAgent> = new Map();
@@ -88,7 +88,7 @@ export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnec
       // Send pending notifications
       await this.sendPendingNotifications(client, agent.id);
     } catch (error) {
-      this.logger.error(`Connection error: ${error.message}`);
+      this.logger.error(`Connection error: ${(error as Error).message}`);
       client.disconnect();
     }
   }
@@ -190,7 +190,7 @@ export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnec
 
       return savedNotification;
     } catch (error) {
-      this.logger.error(`Error sending notification: ${error.message}`);
+      this.logger.error(`Error sending notification: ${(error as Error).message}`);
       throw error;
     }
   }
@@ -359,7 +359,7 @@ export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnec
         );
       }
     } catch (error) {
-      this.logger.error(`Error sending pending notifications: ${error.message}`);
+      this.logger.error(`Error sending pending notifications: ${(error as Error).message}`);
     }
   }
 

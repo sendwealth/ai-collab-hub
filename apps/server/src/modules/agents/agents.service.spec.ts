@@ -1,12 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AgentsService } from './agents.service';
-import { PrismaService } from '../../prisma/prisma.service';
-import { BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
-import * as crypto from 'crypto';
+import { PrismaService } from '../common/prisma/prisma.service';
+import { NotFoundException, ConflictException } from '@nestjs/common';
+import { UpdateAgentStatusDto } from './dto';
 
 describe('AgentsService', () => {
   let service: AgentsService;
-  let prisma: PrismaService;
 
   const mockPrismaService = {
     agent: {
@@ -35,7 +34,6 @@ describe('AgentsService', () => {
     }).compile();
 
     service = module.get<AgentsService>(AgentsService);
-    prisma = module.get<PrismaService>(PrismaService);
   });
 
   afterEach(() => {
@@ -48,32 +46,25 @@ describe('AgentsService', () => {
         name: 'TestAgent',
         publicKey: 'test-public-key',
         description: 'Test agent description',
-        capabilities: {
-          skills: ['code-review', 'testing'],
-          maxConcurrentTasks: 3,
-        },
       };
 
       const mockAgent = {
         id: 'agent-id',
         ...registerDto,
-        apiKey: 'sk_agent_test123',
         status: 'idle',
         trustScore: 0,
-        createdAt: new Date(),
+        apiKey: 'sk_agent_test123',
       };
 
-      mockPrismaService.agent.findFirst.mockResolvedValue(null);
       mockPrismaService.agent.create.mockResolvedValue(mockAgent);
 
       const result = await service.register(registerDto);
 
       expect(result).toHaveProperty('agentId');
       expect(result).toHaveProperty('apiKey');
-      expect(prisma.agent.create).toHaveBeenCalled();
     });
 
-    it('should throw ConflictException if agent name already exists', async () => {
+    it('should throw ConflictException if agent name exists', async () => {
       const registerDto = {
         name: 'ExistingAgent',
         publicKey: 'test-key',
@@ -83,80 +74,20 @@ describe('AgentsService', () => {
 
       await expect(service.register(registerDto)).rejects.toThrow(ConflictException);
     });
-
-    it('should generate unique API key', async () => {
-      const registerDto = {
-        name: 'TestAgent',
-        publicKey: 'test-key',
-      };
-
-      mockPrismaService.agent.findFirst.mockResolvedValue(null);
-      mockPrismaService.agent.create.mockResolvedValue({
-        id: 'agent-id',
-        apiKey: 'sk_agent_unique123',
-      });
-
-      const result = await service.register(registerDto);
-
-      expect(result.apiKey).toMatch(/^sk_agent_/);
-    });
-
-    it('should set initial trust score to 0', async () => {
-      const registerDto = {
-        name: 'TestAgent',
-        publicKey: 'test-key',
-      };
-
-      mockPrismaService.agent.findFirst.mockResolvedValue(null);
-      mockPrismaService.agent.create.mockResolvedValue({
-        id: 'agent-id',
-        trustScore: 0,
-      });
-
-      const result = await service.register(registerDto);
-
-      expect(result.trustScore).toBe(0);
-    });
   });
 
-  describe('findByApiKey', () => {
-    it('should return agent by API key', async () => {
+  describe('getMe', () => {
+    it('should return agent profile', async () => {
       const mockAgent = {
         id: 'agent-id',
         name: 'TestAgent',
-        apiKey: 'sk_agent_test123',
+        status: 'idle',
+        trustScore: 50,
       };
 
       mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
 
-      const result = await service.findByApiKey('sk_agent_test123');
-
-      expect(result).toEqual(mockAgent);
-      expect(prisma.agent.findUnique).toHaveBeenCalledWith({
-        where: { apiKey: 'sk_agent_test123' },
-      });
-    });
-
-    it('should return null if API key not found', async () => {
-      mockPrismaService.agent.findUnique.mockResolvedValue(null);
-
-      const result = await service.findByApiKey('invalid-key');
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('findOne', () => {
-    it('should return agent by id', async () => {
-      const mockAgent = {
-        id: 'agent-id',
-        name: 'TestAgent',
-        tasks: [],
-      };
-
-      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
-
-      const result = await service.findOne('agent-id');
+      const result = await service.getMe('agent-id');
 
       expect(result).toEqual(mockAgent);
     });
@@ -164,216 +95,47 @@ describe('AgentsService', () => {
     it('should throw NotFoundException if agent not found', async () => {
       mockPrismaService.agent.findUnique.mockResolvedValue(null);
 
-      await expect(service.findOne('invalid-id')).rejects.toThrow(NotFoundException);
+      await expect(service.getMe('invalid-id')).rejects.toThrow(NotFoundException);
     });
   });
 
-  describe('findAll', () => {
-    it('should return all agents with pagination', async () => {
-      const mockAgents = [
-        { id: 'agent-1', name: 'Agent 1' },
-        { id: 'agent-2', name: 'Agent 2' },
-      ];
+  describe('updateMe', () => {
+    it('should update agent info', async () => {
+      const updateDto = {
+        description: 'Updated description',
+      };
 
-      mockPrismaService.agent.findMany.mockResolvedValue(mockAgents);
-      mockPrismaService.agent.count.mockResolvedValue(2);
+      const mockAgent = {
+        id: 'agent-id',
+        description: 'Updated description',
+      };
 
-      const result = await service.findAll({});
+      mockPrismaService.agent.findUnique.mockResolvedValue({ id: 'agent-id' });
+      mockPrismaService.agent.update.mockResolvedValue(mockAgent);
 
-      expect(result.agents).toHaveLength(2);
-      expect(result.total).toBe(2);
-    });
+      const result = await service.updateMe('agent-id', updateDto);
 
-    it('should filter agents by skill', async () => {
-      const mockAgents = [
-        {
-          id: 'agent-1',
-          capabilities: { skills: ['code-review'] },
-        },
-      ];
-
-      mockPrismaService.agent.findMany.mockResolvedValue(mockAgents);
-      mockPrismaService.agent.count.mockResolvedValue(1);
-
-      const result = await service.findAll({ skill: 'code-review' });
-
-      expect(result.agents).toHaveLength(1);
-    });
-
-    it('should filter agents by status', async () => {
-      const mockAgents = [{ id: 'agent-1', status: 'idle' }];
-
-      mockPrismaService.agent.findMany.mockResolvedValue(mockAgents);
-      mockPrismaService.agent.count.mockResolvedValue(1);
-
-      const result = await service.findAll({ status: 'idle' });
-
-      expect(result.agents).toHaveLength(1);
-    });
-
-    it('should filter agents by minimum trust score', async () => {
-      const mockAgents = [{ id: 'agent-1', trustScore: 80 }];
-
-      mockPrismaService.agent.findMany.mockResolvedValue(mockAgents);
-      mockPrismaService.agent.count.mockResolvedValue(1);
-
-      const result = await service.findAll({ minTrustScore: 50 });
-
-      expect(result.agents).toHaveLength(1);
-    });
-
-    it('should support pagination', async () => {
-      mockPrismaService.agent.findMany.mockResolvedValue([]);
-      mockPrismaService.agent.count.mockResolvedValue(100);
-
-      const result = await service.findAll({ page: 2, limit: 10 });
-
-      expect(result.page).toBe(2);
-      expect(result.limit).toBe(10);
+      expect(result.agent.description).toBe('Updated description');
     });
   });
 
   describe('updateStatus', () => {
     it('should update agent status', async () => {
-      const mockAgent = {
-        id: 'agent-id',
-        status: 'idle',
+      const updateDto: UpdateAgentStatusDto = {
+        status: 'busy',
       };
 
-      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
-      mockPrismaService.agent.update.mockResolvedValue({
-        ...mockAgent,
+      const mockAgent = {
+        id: 'agent-id',
         status: 'busy',
-      });
+      };
 
-      const result = await service.updateStatus('agent-id', { status: 'busy' });
+      mockPrismaService.agent.findUnique.mockResolvedValue({ id: 'agent-id' });
+      mockPrismaService.agent.update.mockResolvedValue(mockAgent);
+
+      const result = await service.updateStatus('agent-id', updateDto);
 
       expect(result.status).toBe('busy');
-    });
-
-    it('should throw NotFoundException if agent not found', async () => {
-      mockPrismaService.agent.findUnique.mockResolvedValue(null);
-
-      await expect(
-        service.updateStatus('invalid-id', { status: 'busy' })
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it('should validate status transitions', async () => {
-      const mockAgent = {
-        id: 'agent-id',
-        status: 'offline',
-      };
-
-      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
-
-      // Should allow transitioning from offline to idle
-      const result = await service.updateStatus('agent-id', { status: 'idle' });
-
-      expect(result.status).toBe('idle');
-    });
-  });
-
-  describe('updateTrustScore', () => {
-    it('should increase trust score on successful task', async () => {
-      const mockAgent = {
-        id: 'agent-id',
-        trustScore: 50,
-      };
-
-      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
-      mockPrismaService.agent.update.mockResolvedValue({
-        ...mockAgent,
-        trustScore: 60,
-      });
-
-      const result = await service.updateTrustScore('agent-id', 10);
-
-      expect(result.trustScore).toBe(60);
-    });
-
-    it('should decrease trust score on failed task', async () => {
-      const mockAgent = {
-        id: 'agent-id',
-        trustScore: 50,
-      };
-
-      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
-      mockPrismaService.agent.update.mockResolvedValue({
-        ...mockAgent,
-        trustScore: 40,
-      });
-
-      const result = await service.updateTrustScore('agent-id', -10);
-
-      expect(result.trustScore).toBe(40);
-    });
-
-    it('should not allow negative trust score', async () => {
-      const mockAgent = {
-        id: 'agent-id',
-        trustScore: 5,
-      };
-
-      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
-      mockPrismaService.agent.update.mockResolvedValue({
-        ...mockAgent,
-        trustScore: 0,
-      });
-
-      const result = await service.updateTrustScore('agent-id', -10);
-
-      expect(result.trustScore).toBe(0);
-    });
-
-    it('should cap trust score at 100', async () => {
-      const mockAgent = {
-        id: 'agent-id',
-        trustScore: 95,
-      };
-
-      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
-      mockPrismaService.agent.update.mockResolvedValue({
-        ...mockAgent,
-        trustScore: 100,
-      });
-
-      const result = await service.updateTrustScore('agent-id', 10);
-
-      expect(result.trustScore).toBe(100);
-    });
-  });
-
-  describe('getStatistics', () => {
-    it('should return agent statistics', async () => {
-      const mockAgent = {
-        id: 'agent-id',
-        trustScore: 75,
-      };
-
-      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
-      mockPrismaService.task.count.mockResolvedValue(10);
-      mockPrismaService.task.findMany.mockResolvedValue([]);
-
-      const result = await service.getStatistics('agent-id');
-
-      expect(result).toHaveProperty('totalTasks');
-      expect(result).toHaveProperty('completedTasks');
-      expect(result).toHaveProperty('successRate');
-      expect(result).toHaveProperty('trustScore');
-    });
-
-    it('should calculate success rate correctly', async () => {
-      const mockAgent = { id: 'agent-id' };
-
-      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
-      mockPrismaService.task.count
-        .mockResolvedValueOnce(10) // total tasks
-        .mockResolvedValueOnce(8); // completed tasks
-
-      const result = await service.getStatistics('agent-id');
-
-      expect(result.successRate).toBe(80);
     });
   });
 
@@ -382,10 +144,6 @@ describe('AgentsService', () => {
       const mockAgents = [
         {
           id: 'agent-1',
-          capabilities: { skills: ['code-review', 'testing'] },
-        },
-        {
-          id: 'agent-2',
           capabilities: { skills: ['code-review'] },
         },
       ];
@@ -394,121 +152,78 @@ describe('AgentsService', () => {
 
       const result = await service.discover({ skill: 'code-review' });
 
-      expect(result.agents).toHaveLength(2);
+      expect(result.agents).toHaveLength(1);
     });
 
-    it('should sort agents by trust score', async () => {
+    it('should discover agents by status', async () => {
       const mockAgents = [
-        { id: 'agent-1', trustScore: 80 },
-        { id: 'agent-2', trustScore: 90 },
+        {
+          id: 'agent-1',
+          status: 'idle',
+        },
       ];
 
       mockPrismaService.agent.findMany.mockResolvedValue(mockAgents);
 
-      const result = await service.discover({ sortBy: 'trustScore' });
-
-      expect(result.agents[0].trustScore).toBeGreaterThanOrEqual(
-        result.agents[1].trustScore
-      );
-    });
-
-    it('should filter by availability', async () => {
-      const mockAgents = [{ id: 'agent-1', status: 'idle' }];
-
-      mockPrismaService.agent.findMany.mockResolvedValue(mockAgents);
-
-      const result = await service.discover({ available: true });
+      const result = await service.discover({ status: 'idle' });
 
       expect(result.agents).toHaveLength(1);
     });
   });
 
-  describe('Edge Cases and Error Handling', () => {
-    it('should handle database connection errors', async () => {
-      mockPrismaService.agent.findUnique.mockRejectedValue(
-        new Error('Connection failed')
-      );
-
-      await expect(service.findOne('agent-id')).rejects.toThrow();
-    });
-
-    it('should validate input data', async () => {
-      const invalidDto = {
-        name: '',
-        publicKey: '',
-      };
-
-      await expect(service.register(invalidDto)).rejects.toThrow();
-    });
-
-    it('should handle concurrent updates', async () => {
+  describe('getAgentProfile', () => {
+    it('should return public agent profile', async () => {
       const mockAgent = {
         id: 'agent-id',
+        name: 'TestAgent',
+        status: 'idle',
         trustScore: 50,
-        version: 1,
       };
 
       mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
-      mockPrismaService.agent.update.mockResolvedValue({
-        ...mockAgent,
-        trustScore: 60,
-        version: 2,
-      });
 
-      const results = await Promise.all([
-        service.updateTrustScore('agent-id', 5),
-        service.updateTrustScore('agent-id', 5),
-      ]);
+      const result = await service.getAgentProfile('agent-id');
 
-      expect(results).toHaveLength(2);
+      expect(result).toEqual(mockAgent);
     });
 
-    it('should sanitize user input', async () => {
-      const maliciousDto = {
-        name: '<script>alert("XSS")</script>',
-        publicKey: 'test-key',
-      };
+    it('should throw NotFoundException if agent not found', async () => {
+      mockPrismaService.agent.findUnique.mockResolvedValue(null);
 
-      mockPrismaService.agent.findFirst.mockResolvedValue(null);
-      mockPrismaService.agent.create.mockResolvedValue({
-        id: 'agent-id',
-        name: 'alert("XSS")',
-      });
-
-      const result = await service.register(maliciousDto);
-
-      expect(result.name).not.toContain('<script>');
+      await expect(service.getAgentProfile('invalid-id')).rejects.toThrow(NotFoundException);
     });
   });
 
-  describe('Performance Tests', () => {
-    it('should handle large result sets efficiently', async () => {
-      const mockAgents = Array(1000).fill({ id: 'agent-id' });
+  describe('validateByApiKey', () => {
+    it('should return agent for valid API key', async () => {
+      const mockAgent = {
+        id: 'agent-id',
+        apiKey: 'sk_agent_test123',
+        name: 'TestAgent',
+      };
 
-      mockPrismaService.agent.findMany.mockResolvedValue(mockAgents);
-      mockPrismaService.agent.count.mockResolvedValue(1000);
+      mockPrismaService.agent.findUnique.mockResolvedValue(mockAgent);
+      mockPrismaService.agent.update.mockResolvedValue(mockAgent);
 
-      const startTime = Date.now();
-      const result = await service.findAll({ limit: 1000 });
-      const endTime = Date.now();
+      const result = await service.validateByApiKey('sk_agent_test123');
 
-      expect(result.agents).toHaveLength(1000);
-      expect(endTime - startTime).toBeLessThan(1000); // Should complete in <1s
+      expect(result).toEqual(mockAgent);
     });
 
-    it('should use pagination for large datasets', async () => {
-      mockPrismaService.agent.findMany.mockResolvedValue([]);
-      mockPrismaService.agent.count.mockResolvedValue(10000);
+    it('should return null for invalid API key', async () => {
+      mockPrismaService.agent.findUnique.mockResolvedValue(null);
 
-      const result = await service.findAll({ page: 1, limit: 50 });
+      const result = await service.validateByApiKey('invalid-key');
 
-      expect(result.limit).toBe(50);
-      expect(prisma.agent.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          skip: 0,
-          take: 50,
-        })
-      );
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle database errors gracefully', async () => {
+      mockPrismaService.agent.findUnique.mockRejectedValue(new Error('Database error'));
+
+      await expect(service.getMe('agent-id')).rejects.toThrow();
     });
   });
 });

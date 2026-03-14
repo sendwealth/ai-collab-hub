@@ -1,6 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
+import { SubtasksService } from './subtasks.service';
+import { PricingService } from './pricing.service';
+import { AgentsService } from '../agents/agents.service';
 import { CreateTaskDto, BidTaskDto, SubmitTaskDto } from './dto';
 
 describe('TasksController', () => {
@@ -8,14 +11,32 @@ describe('TasksController', () => {
   let service: TasksService;
 
   const mockTasksService = {
-    create: jest.fn(),
-    findAll: jest.fn(),
-    findOne: jest.fn(),
+    createTask: jest.fn(),
+    getTasks: jest.fn(),
+    getTask: jest.fn(),
     getMyTasks: jest.fn(),
     bidTask: jest.fn(),
     acceptBid: jest.fn(),
     submitTask: jest.fn(),
     completeTask: jest.fn(),
+  };
+
+  const mockSubtasksService = {
+    createSubtask: jest.fn(),
+    getSubtasks: jest.fn(),
+    removeSubtask: jest.fn(),
+    getTaskTree: jest.fn(),
+    getTaskProgress: jest.fn(),
+    updateSubtaskOrder: jest.fn(),
+  };
+
+  const mockPricingService = {
+    suggestPrice: jest.fn(),
+    getMarketPrice: jest.fn(),
+  };
+
+  const mockAgentsService = {
+    validateByApiKey: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -25,6 +46,18 @@ describe('TasksController', () => {
         {
           provide: TasksService,
           useValue: mockTasksService,
+        },
+        {
+          provide: SubtasksService,
+          useValue: mockSubtasksService,
+        },
+        {
+          provide: PricingService,
+          useValue: mockPricingService,
+        },
+        {
+          provide: AgentsService,
+          useValue: mockAgentsService,
         },
       ],
     }).compile();
@@ -41,7 +74,7 @@ describe('TasksController', () => {
     expect(controller).toBeDefined();
   });
 
-  describe('create', () => {
+  describe('createTask', () => {
     it('should create a task', async () => {
       const createTaskDto: CreateTaskDto = {
         title: 'Test Task',
@@ -50,49 +83,52 @@ describe('TasksController', () => {
         reward: { credits: 100 },
       };
 
-      mockTasksService.create.mockResolvedValue({
-        id: 'task-id',
-        ...createTaskDto,
+      mockTasksService.createTask.mockResolvedValue({
+        taskId: 'task-id',
+        task: {
+          id: 'task-id',
+          ...createTaskDto,
+        },
       });
 
-      const result = await controller.create(createTaskDto, 'creator-id');
+      const result = await controller.createTask('creator-id', createTaskDto);
 
-      expect(result.id).toBe('task-id');
-      expect(service.create).toHaveBeenCalledWith('creator-id', createTaskDto);
+      expect(result.taskId).toBe('task-id');
+      expect(service.createTask).toHaveBeenCalledWith('creator-id', createTaskDto);
     });
   });
 
-  describe('findAll', () => {
+  describe('getTasks', () => {
     it('should return array of tasks', async () => {
       const mockTasks = [
         { id: 'task-1', title: 'Task 1' },
         { id: 'task-2', title: 'Task 2' },
       ];
 
-      mockTasksService.findAll.mockResolvedValue({
+      mockTasksService.getTasks.mockResolvedValue({
         total: 2,
         tasks: mockTasks,
       });
 
-      const result = await controller.findAll({});
+      const result = await controller.getTasks({});
 
       expect(result.total).toBe(2);
       expect(result.tasks).toHaveLength(2);
-      expect(service.findAll).toHaveBeenCalledWith({});
+      expect(service.getTasks).toHaveBeenCalledWith({});
     });
   });
 
-  describe('findOne', () => {
+  describe('getTask', () => {
     it('should return a task', async () => {
-      mockTasksService.findOne.mockResolvedValue({
+      mockTasksService.getTask.mockResolvedValue({
         id: 'task-id',
         title: 'Test Task',
       });
 
-      const result = await controller.findOne('task-id');
+      const result = await controller.getTask('task-id');
 
       expect(result.id).toBe('task-id');
-      expect(service.findOne).toHaveBeenCalledWith('task-id');
+      expect(service.getTask).toHaveBeenCalledWith('task-id');
     });
   });
 

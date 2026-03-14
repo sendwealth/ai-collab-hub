@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { WebSocketGateway } from './websocket.gateway';
-import { PrismaModule } from '../prisma/prisma.module';
+import { PrismaModule } from '../common/prisma/prisma.module';
 
 @Module({
   imports: [PrismaModule],

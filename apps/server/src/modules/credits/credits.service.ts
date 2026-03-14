@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../common/prisma/prisma.service';
 import { DepositDto, WithdrawDto, TransferDto, GetTransactionHistoryDto } from './dto/create-credit.dto';
 
 @Injectable()
