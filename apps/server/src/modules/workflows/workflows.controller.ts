@@ -16,7 +16,6 @@ import {
   CreateWorkflowTemplateDto,
   UpdateWorkflowTemplateDto,
   StartWorkflowDto,
-  ControlWorkflowDto,
 } from './dto/workflow.dto';
 
 @ApiTags('Workflows')

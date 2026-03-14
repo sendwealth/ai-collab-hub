@@ -32,10 +32,10 @@ export class BatchController {
       requests.map(async (req) => {
         try {
           return await this.processRequest(req);
-        } catch (error) {
+        } catch (error: unknown) {
           return {
             error: true,
-            message: error.message,
+            message: error instanceof Error ? error.message : 'Unknown error',
             path: req.path,
           };
         }

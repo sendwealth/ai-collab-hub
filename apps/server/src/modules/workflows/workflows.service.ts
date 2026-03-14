@@ -6,8 +6,6 @@ import {
   CreateWorkflowTemplateDto,
   UpdateWorkflowTemplateDto,
   StartWorkflowDto,
-  ControlWorkflowDto,
-  WorkflowDefinitionDto,
 } from './dto/workflow.dto';
 
 @Injectable()
@@ -29,8 +27,8 @@ export class WorkflowsService {
     // Validate workflow definition
     try {
       this.parser.parse(dto.definition);
-    } catch (error) {
-      throw new BadRequestException(`Invalid workflow definition: ${error.message}`);
+    } catch (error: unknown) {
+      throw new BadRequestException(`Invalid workflow definition: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     return this.prisma.workflowTemplate.create({
@@ -90,8 +88,8 @@ export class WorkflowsService {
     if (dto.definition) {
       try {
         this.parser.parse(dto.definition);
-      } catch (error) {
-        throw new BadRequestException(`Invalid workflow definition: ${error.message}`);
+      } catch (error: unknown) {
+        throw new BadRequestException(`Invalid workflow definition: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 

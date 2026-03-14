@@ -3,11 +3,9 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-  Inject,
-  Optional,
 } from '@nestjs/common';
-import { Observable, of, from } from 'rxjs';
-import { switchMap, tap } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
 import { CacheService } from './cache.service';
 import { Reflector } from '@nestjs/core';
 

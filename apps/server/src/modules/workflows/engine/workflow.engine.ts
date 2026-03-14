@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { WorkflowParser, ParsedWorkflow } from '../parser/workflow.parser';
-import { WorkflowExecutor, ExecutionContext } from '../executor/workflow.executor';
+import { WorkflowExecutor, WorkflowExecutionContext } from '../executor/workflow.executor';
 import { WorkflowDefinitionDto } from '../dto/workflow.dto';
 
 export interface WorkflowState {
@@ -106,7 +106,7 @@ export class WorkflowEngine implements OnModuleInit {
       throw new Error(`Instance ${instanceId} not found`);
     }
 
-    const context: ExecutionContext = {
+    const context: WorkflowExecutionContext = {
       instanceId,
       variables: JSON.parse(instance.context || '{}'),
       history: [],
@@ -122,11 +122,11 @@ export class WorkflowEngine implements OnModuleInit {
    */
   private async executeFromNode(
     nodeId: string,
-    context: ExecutionContext,
+    context: WorkflowExecutionContext,
     workflow: ParsedWorkflow
   ): Promise<void> {
     let currentNodeId = nodeId;
-    let maxIterations = 1000; // Prevent infinite loops
+    const maxIterations = 1000; // Prevent infinite loops
     let iterations = 0;
 
     while (currentNodeId && iterations < maxIterations) {
@@ -355,9 +355,9 @@ export class WorkflowEngine implements OnModuleInit {
 
         // Resume from current node
         await this.executeWorkflow(instance.id, parsedWorkflow);
-      } catch (error) {
-        this.logger.error(`Failed to resume workflow ${instance.id}: ${error.message}`);
-        await this.failWorkflow(instance.id, `Resume failed: ${error.message}`);
+      } catch (error: unknown) {
+        this.logger.error(`Failed to resume workflow ${instance.id}: ${error instanceof Error ? error.message : String(error)}`);
+        await this.failWorkflow(instance.id, `Resume failed: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   }
@@ -376,7 +376,7 @@ export class WorkflowEngine implements OnModuleInit {
         expr = expr.replace(new RegExp(`\\$${key}`, 'g'), JSON.stringify(value));
       }
       return eval(expr);
-    } catch (error) {
+    } catch (error: unknown) {
       return false;
     }
   }

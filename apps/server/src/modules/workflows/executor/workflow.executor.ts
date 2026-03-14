@@ -1,12 +1,12 @@
-import { Injectable, Logger, ExecutionContext } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { WorkflowNodeDto, WorkflowEdgeDto } from '../dto/workflow.dto';
+import { WorkflowNodeDto } from '../dto/workflow.dto';
 import { ParsedWorkflow } from '../parser/workflow.parser';
 
-export interface ExecutionContext {
+export interface WorkflowExecutionContext {
   instanceId: string;
   variables: Record<string, any>;
-  history: string[];
+  history: Array<{ nodeId: string; timestamp: Date; status: string }>;
   currentNode: string | null;
 }
 
@@ -21,7 +21,7 @@ export class WorkflowExecutor {
    */
   async executeNode(
     node: WorkflowNodeDto,
-    context: ExecutionContext,
+    context: WorkflowExecutionContext,
     workflow: ParsedWorkflow
   ): Promise<{ success: boolean; output?: any; error?: string }> {
     this.logger.log(`Executing node ${node.id} of type ${node.type}`);
@@ -40,12 +40,11 @@ export class WorkflowExecutor {
       });
 
       let result: any;
-      let success = true;
 
       // Execute based on node type
       switch (node.type) {
         case 'start':
-          result = await this.executeStart(node, context);
+          result = await this.executeStart(node);
           break;
 
         case 'end':
@@ -53,7 +52,7 @@ export class WorkflowExecutor {
           break;
 
         case 'task':
-          result = await this.executeTask(node, context);
+          result = await this.executeTask(node);
           break;
 
         case 'condition':
@@ -61,11 +60,11 @@ export class WorkflowExecutor {
           break;
 
         case 'parallel':
-          result = await this.executeParallel(node, context, workflow);
+          result = await this.executeParallel(node, workflow);
           break;
 
         case 'delay':
-          result = await this.executeDelay(node, context);
+          result = await this.executeDelay(node);
           break;
 
         case 'loop':
@@ -77,19 +76,21 @@ export class WorkflowExecutor {
       }
 
       // Update execution record
+      const duration = execution.startedAt ? Date.now() - execution.startedAt.getTime() : 0;
       await this.prisma.workflowNodeExecution.update({
         where: { id: execution.id },
         data: {
           status: 'completed',
           output: JSON.stringify(result),
           completedAt: new Date(),
-          duration: Date.now() - execution.startedAt.getTime(),
+          duration,
         },
       });
 
       return { success: true, output: result };
-    } catch (error) {
-      this.logger.error(`Failed to execute node ${node.id}: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to execute node ${node.id}: ${errorMsg}`);
 
       // Update execution record with error
       await this.prisma.workflowNodeExecution.updateMany({
@@ -100,28 +101,26 @@ export class WorkflowExecutor {
         },
         data: {
           status: 'failed',
-          error: error.message,
+          error: errorMsg,
           completedAt: new Date(),
         },
       });
 
-      return { success: false, error: error.message };
+      return { success: false, error: errorMsg };
     }
   }
 
   /**
    * Execute start node
    */
-  private async executeStart(node: WorkflowNodeDto, context: ExecutionContext): Promise<any> {
-    this.logger.debug(`Start node ${node.id}`);
+  private async executeStart(_node: WorkflowNodeDto): Promise<any> {
     return { started: true, timestamp: new Date().toISOString() };
   }
 
   /**
    * Execute end node
    */
-  private async executeEnd(node: WorkflowNodeDto, context: ExecutionContext): Promise<any> {
-    this.logger.debug(`End node ${node.id}`);
+  private async executeEnd(_node: WorkflowNodeDto, context: WorkflowExecutionContext): Promise<any> {
     return {
       completed: true,
       timestamp: new Date().toISOString(),
@@ -132,18 +131,13 @@ export class WorkflowExecutor {
   /**
    * Execute task node
    */
-  private async executeTask(node: WorkflowNodeDto, context: ExecutionContext): Promise<any> {
+  private async executeTask(node: WorkflowNodeDto): Promise<any> {
     const agentId = node.agentId || node.config?.agentId;
     this.logger.debug(`Task node ${node.id} assigned to agent ${agentId}`);
 
-    // In a real implementation, this would call the agent API
-    // For now, we simulate task execution
     const taskConfig = node.config || {};
-
-    // Simulate task execution delay
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Return simulated result
     return {
       agentId,
       taskId: `task-${Date.now()}`,
@@ -158,12 +152,11 @@ export class WorkflowExecutor {
    */
   private async executeCondition(
     node: WorkflowNodeDto,
-    context: ExecutionContext,
+    context: WorkflowExecutionContext,
     workflow: ParsedWorkflow
   ): Promise<any> {
     this.logger.debug(`Condition node ${node.id}`);
 
-    // Get next edges with conditions
     const nextEdges = workflow.edges.get(node.id) || [];
     const conditionResults: Record<string, boolean> = {};
 
@@ -183,18 +176,12 @@ export class WorkflowExecutor {
   /**
    * Execute parallel node
    */
-  private async executeParallel(
-    node: WorkflowNodeDto,
-    context: ExecutionContext,
-    workflow: ParsedWorkflow
-  ): Promise<any> {
+  private async executeParallel(node: WorkflowNodeDto, workflow: ParsedWorkflow): Promise<any> {
     this.logger.debug(`Parallel node ${node.id}`);
 
     const nextEdges = workflow.edges.get(node.id) || [];
     const parallelResults: any[] = [];
 
-    // In a real implementation, this would execute tasks in parallel
-    // For now, we simulate parallel execution
     for (const edge of nextEdges) {
       parallelResults.push({
         nodeId: edge.to,
@@ -212,11 +199,11 @@ export class WorkflowExecutor {
   /**
    * Execute delay node
    */
-  private async executeDelay(node: WorkflowNodeDto, context: ExecutionContext): Promise<any> {
+  private async executeDelay(node: WorkflowNodeDto): Promise<any> {
     const delayMs = node.delay || node.config?.delay || 1000;
     this.logger.debug(`Delay node ${node.id} waiting for ${delayMs}ms`);
 
-    await new Promise(resolve => setTimeout(resolve, Math.min(delayMs, 5000))); // Cap at 5s for safety
+    await new Promise(resolve => setTimeout(resolve, Math.min(delayMs, 5000)));
 
     return {
       delayed: delayMs,
@@ -229,14 +216,12 @@ export class WorkflowExecutor {
    */
   private async executeLoop(
     node: WorkflowNodeDto,
-    context: ExecutionContext,
-    workflow: ParsedWorkflow
+    _context: WorkflowExecutionContext,
+    _workflow: ParsedWorkflow
   ): Promise<any> {
     const maxIterations = node.config?.maxIterations || 10;
     this.logger.debug(`Loop node ${node.id} with max ${maxIterations} iterations`);
 
-    // In a real implementation, this would execute the loop body
-    // For now, we return loop metadata
     return {
       maxIterations,
       currentIteration: 0,
@@ -254,13 +239,10 @@ export class WorkflowExecutor {
     }
 
     try {
-      // Simple expression evaluation
       let expr = condition;
       for (const [key, value] of Object.entries(variables)) {
         expr = expr.replace(new RegExp(`\\$${key}`, 'g'), JSON.stringify(value));
       }
-
-      // Basic safe evaluation
       return eval(expr);
     } catch (error) {
       this.logger.error(`Failed to evaluate condition: ${condition}`);

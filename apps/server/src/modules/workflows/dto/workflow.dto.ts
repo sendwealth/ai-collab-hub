@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsObject, IsBoolean, IsArray, IsEnum, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsObject, IsBoolean, IsArray, IsEnum, ValidateNested, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -9,11 +9,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class WorkflowNodeDto {
   @ApiProperty({ description: 'Node ID' })
   @IsString()
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: 'Node type', enum: ['start', 'end', 'task', 'condition', 'parallel', 'delay', 'loop'] })
   @IsEnum(['start', 'end', 'task', 'condition', 'parallel', 'delay', 'loop'])
-  type: string;
+  type!: string;
 
   @ApiPropertyOptional({ description: 'Agent ID for task nodes' })
   @IsOptional()
@@ -27,6 +27,7 @@ export class WorkflowNodeDto {
 
   @ApiPropertyOptional({ description: 'Delay in milliseconds for delay nodes' })
   @IsOptional()
+  @IsNumber()
   delay?: number;
 
   @ApiPropertyOptional({ description: 'Node configuration' })
@@ -38,11 +39,11 @@ export class WorkflowNodeDto {
 export class WorkflowEdgeDto {
   @ApiProperty({ description: 'Source node ID' })
   @IsString()
-  from: string;
+  from!: string;
 
   @ApiProperty({ description: 'Target node ID' })
   @IsString()
-  to: string;
+  to!: string;
 
   @ApiPropertyOptional({ description: 'Condition for conditional edges' })
   @IsOptional()
@@ -54,13 +55,13 @@ export class WorkflowDefinitionDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => WorkflowNodeDto)
-  nodes: WorkflowNodeDto[];
+  nodes!: WorkflowNodeDto[];
 
   @ApiProperty({ type: [WorkflowEdgeDto] })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => WorkflowEdgeDto)
-  edges: WorkflowEdgeDto[];
+  edges!: WorkflowEdgeDto[];
 }
 
 // ============================================
@@ -70,7 +71,7 @@ export class WorkflowDefinitionDto {
 export class CreateWorkflowTemplateDto {
   @ApiProperty({ description: 'Template name' })
   @IsString()
-  name: string;
+  name!: string;
 
   @ApiPropertyOptional({ description: 'Template description' })
   @IsOptional()
@@ -79,7 +80,7 @@ export class CreateWorkflowTemplateDto {
 
   @ApiProperty({ description: 'Template category' })
   @IsString()
-  category: string;
+  category!: string;
 
   @ApiPropertyOptional({ description: 'Template version' })
   @IsOptional()
@@ -89,7 +90,7 @@ export class CreateWorkflowTemplateDto {
   @ApiProperty({ description: 'Workflow definition', type: WorkflowDefinitionDto })
   @ValidateNested()
   @Type(() => WorkflowDefinitionDto)
-  definition: WorkflowDefinitionDto;
+  definition!: WorkflowDefinitionDto;
 
   @ApiPropertyOptional({ description: 'Tags' })
   @IsOptional()
@@ -153,7 +154,7 @@ export class UpdateWorkflowTemplateDto {
 export class StartWorkflowDto {
   @ApiProperty({ description: 'Template ID' })
   @IsString()
-  templateId: string;
+  templateId!: string;
 
   @ApiPropertyOptional({ description: 'Associated task ID' })
   @IsOptional()
@@ -173,7 +174,7 @@ export class StartWorkflowDto {
 export class ControlWorkflowDto {
   @ApiProperty({ description: 'Instance ID' })
   @IsString()
-  instanceId: string;
+  instanceId!: string;
 
   @ApiPropertyOptional({ description: 'New context variables' })
   @IsOptional()
