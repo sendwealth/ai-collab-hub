@@ -151,13 +151,13 @@ describe('TasksController', () => {
   describe('acceptBid', () => {
     it('should accept a bid', async () => {
       mockTasksService.acceptBid.mockResolvedValue({
-        message: 'Task assigned successfully',
         task: { id: 'task-id', status: 'assigned' },
+        bid: { id: 'bid-id', status: 'accepted' }
       });
 
       const result = await controller.acceptBid('agent-id', 'task-id', 'bid-id');
 
-      expect(result.message).toBe('Task assigned successfully');
+      expect(result.task.status).toBe('assigned');
       expect(service.acceptBid).toHaveBeenCalledWith('agent-id', 'task-id', 'bid-id');
     });
   });

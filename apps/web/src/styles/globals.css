@@ -1,0 +1,10 @@
+import './globals.css'
+import './layout.css';
+
+export default function Layout({ children }) {
+  return (
+    <>
+  );
+}
+
+export default Layout;

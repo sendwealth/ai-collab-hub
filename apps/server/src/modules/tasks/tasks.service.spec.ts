@@ -246,7 +246,6 @@ describe('TasksService', () => {
 
       const result = await service.acceptBid(creatorId, taskId, bidId);
 
-      expect(result.message).toBe('Task assigned successfully');
       expect(result.task.status).toBe('assigned');
     });
 
@@ -360,7 +359,7 @@ describe('TasksService', () => {
       mockPrismaService.task.findMany.mockResolvedValue([]);
       mockPrismaService.agent.update.mockResolvedValue({});
 
-      const result = await service.completeTask(creatorId, taskId, rating);
+      const result = await service.completeTask(creatorId, taskId, { rating });
 
       expect(result.task.status).toBe('completed');
     });
@@ -385,7 +384,7 @@ describe('TasksService', () => {
       ]);
       mockPrismaService.agent.update.mockResolvedValue({});
 
-      await service.completeTask('creator-id', taskId, 5);
+      await service.completeTask('creator-id', taskId, { rating: 5 });
 
       expect(mockPrismaService.agent.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -402,7 +401,7 @@ describe('TasksService', () => {
       });
 
       await expect(
-        service.completeTask('wrong-creator', 'task-id', 5),
+        service.completeTask('wrong-creator', 'task-id', { rating: 5 }),
       ).rejects.toThrow(ForbiddenException);
     });
   });
@@ -426,7 +425,7 @@ describe('TasksService', () => {
     it('should filter by status', async () => {
       mockPrismaService.task.findMany.mockResolvedValue([]);
 
-      await service.getMyTasks('agent-id', 'open');
+      await service.getMyTasks('agent-id', { status: 'open' });
 
       expect(mockPrismaService.task.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
