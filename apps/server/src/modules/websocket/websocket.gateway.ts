@@ -1,117 +1,385 @@
 import {
   WebSocketGateway,
   WebSocketServer,
+  SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  ConnectedSocket,
+  MessageBody,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
-import { AgentsService } from '../agents/agents.service';
+import { Logger } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+
+interface ConnectedAgent {
+  socketId: string;
+  agentId: string;
+  agentName: string;
+  rooms: Set<string>;
+}
 
 @WebSocketGateway({
   cors: {
-    origin: true,
+    origin: '*', // In production, specify allowed origins
     credentials: true,
   },
+  namespace: '/notifications',
 })
-export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  server!: Server;
+  server: Server;
 
-  private logger = new Logger('WebsocketGateway');
-  private connectedAgents: Map<string, Socket> = new Map();
+  private readonly logger = new Logger(WebSocketGateway.name);
+  private connectedAgents: Map<string, ConnectedAgent> = new Map();
+  private agentSockets: Map<string, Set<string>> = new Map();
 
-  constructor(private readonly agentsService: AgentsService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async handleConnection(client: Socket) {
     try {
       const apiKey = client.handshake.auth?.apiKey || client.handshake.headers?.['x-api-key'];
-
+      
       if (!apiKey) {
-        client.disconnect(true);
+        this.logger.warn(`Client ${client.id} connected without API key`);
+        client.disconnect();
         return;
       }
 
-      const agent = await this.agentsService.validateByApiKey(apiKey);
+      // Verify API key and get agent
+      const agent = await this.prisma.agent.findUnique({
+        where: { apiKey },
+        select: { id: true, name: true },
+      });
 
       if (!agent) {
-        client.disconnect(true);
+        this.logger.warn(`Invalid API key for client ${client.id}`);
+        client.disconnect();
         return;
       }
 
-      // 存储连接
-      client.data.agentId = agent.id;
-      this.connectedAgents.set(agent.id, client);
+      // Track connected agent
+      const agentConnection: ConnectedAgent = {
+        socketId: client.id,
+        agentId: agent.id,
+        agentName: agent.name,
+        rooms: new Set(),
+      };
 
-      // 更新状态为在线
-      await this.agentsService.updateStatus(agent.id, { status: 'idle' });
+      this.connectedAgents.set(client.id, agentConnection);
 
-      this.logger.log(`Agent connected: ${agent.name} (${agent.id})`);
+      // Track all sockets for this agent
+      if (!this.agentSockets.has(agent.id)) {
+        this.agentSockets.set(agent.id, new Set());
+      }
+      this.agentSockets.get(agent.id)!.add(client.id);
+
+      // Join agent's personal room
+      client.join(`agent:${agent.id}`);
+
+      this.logger.log(`Agent ${agent.name} (${agent.id}) connected with socket ${client.id}`);
+
+      // Send welcome notification
+      client.emit('connected', {
+        message: 'Successfully connected to notification service',
+        agentId: agent.id,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Send pending notifications
+      await this.sendPendingNotifications(client, agent.id);
     } catch (error) {
-      this.logger.error('Connection error:', error);
-      client.disconnect(true);
+      this.logger.error(`Connection error: ${error.message}`);
+      client.disconnect();
     }
   }
 
   async handleDisconnect(client: Socket) {
-    const agentId = client.data.agentId;
-
-    if (agentId) {
-      this.connectedAgents.delete(agentId);
-
-      // 更新状态为离线
-      try {
-        await this.agentsService.updateStatus(agentId, { status: 'offline' });
-      } catch (error) {
-        // Agent可能已删除
+    const agentConnection = this.connectedAgents.get(client.id);
+    
+    if (agentConnection) {
+      // Remove from agent sockets
+      const agentSocketSet = this.agentSockets.get(agentConnection.agentId);
+      if (agentSocketSet) {
+        agentSocketSet.delete(client.id);
+        if (agentSocketSet.size === 0) {
+          this.agentSockets.delete(agentConnection.agentId);
+        }
       }
 
-      this.logger.log(`Agent disconnected: ${agentId}`);
+      this.connectedAgents.delete(client.id);
+      this.logger.log(
+        `Agent ${agentConnection.agentName} (${agentConnection.agentId}) disconnected`
+      );
     }
   }
 
-  /**
-   * 向特定Agent发送消息
-   */
-  sendToAgent(agentId: string, event: string, data: any) {
-    const socket = this.connectedAgents.get(agentId);
-    if (socket) {
-      socket.emit(event, data);
+  @SubscribeMessage('join-room')
+  async handleJoinRoom(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { roomId: string }
+  ) {
+    const agentConnection = this.connectedAgents.get(client.id);
+    if (!agentConnection) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    // Validate room ID format
+    const validPrefixes = ['task:', 'project:', 'team:'];
+    const isValid = validPrefixes.some(prefix => data.roomId.startsWith(prefix));
+    
+    if (!isValid) {
+      return { success: false, error: 'Invalid room ID format' };
+    }
+
+    client.join(data.roomId);
+    agentConnection.rooms.add(data.roomId);
+
+    this.logger.log(
+      `Agent ${agentConnection.agentName} joined room ${data.roomId}`
+    );
+
+    return { success: true, roomId: data.roomId };
+  }
+
+  @SubscribeMessage('leave-room')
+  async handleLeaveRoom(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { roomId: string }
+  ) {
+    const agentConnection = this.connectedAgents.get(client.id);
+    if (!agentConnection) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    client.leave(data.roomId);
+    agentConnection.rooms.delete(data.roomId);
+
+    this.logger.log(
+      `Agent ${agentConnection.agentName} left room ${data.roomId}`
+    );
+
+    return { success: true, roomId: data.roomId };
+  }
+
+  // Send notification to specific agent
+  async sendNotificationToAgent(agentId: string, notification: any) {
+    try {
+      // Save notification to database
+      const savedNotification = await this.prisma.notification.create({
+        data: {
+          agentId,
+          type: notification.type,
+          title: notification.title,
+          message: notification.message,
+          data: notification.data || {},
+          read: false,
+        },
+      });
+
+      // Emit to all sockets of this agent
+      const agentSocketSet = this.agentSockets.get(agentId);
+      if (agentSocketSet && agentSocketSet.size > 0) {
+        this.server.to(`agent:${agentId}`).emit('notification', {
+          id: savedNotification.id,
+          ...notification,
+          timestamp: savedNotification.createdAt.toISOString(),
+        });
+        
+        this.logger.log(`Notification sent to agent ${agentId}: ${notification.type}`);
+      }
+
+      return savedNotification;
+    } catch (error) {
+      this.logger.error(`Error sending notification: ${error.message}`);
+      throw error;
     }
   }
 
-  /**
-   * 广播消息给所有Agent
-   */
-  broadcast(event: string, data: any) {
-    this.server.emit(event, data);
+  // Broadcast to room
+  async broadcastToRoom(roomId: string, event: string, data: any) {
+    this.server.to(roomId).emit(event, data);
+    this.logger.log(`Broadcast ${event} to room ${roomId}`);
   }
 
-  /**
-   * 广播任务可用
-   */
-  broadcastTaskAvailable(task: any) {
-    this.broadcast('task:available', task);
+  // Task events
+  async emitTaskCreated(task: any) {
+    // Notify all agents about new task
+    this.server.emit('task:created', {
+      taskId: task.id,
+      title: task.title,
+      category: task.category,
+      reward: task.reward,
+      timestamp: new Date().toISOString(),
+    });
   }
 
-  /**
-   * 通知Agent任务已分配
-   */
-  notifyTaskAssigned(agentId: string, task: any) {
-    this.sendToAgent(agentId, 'task:assigned', task);
+  async emitTaskUpdated(task: any, updateType: string) {
+    // Notify task room
+    this.broadcastToRoom(`task:${task.id}`, 'task:updated', {
+      taskId: task.id,
+      updateType,
+      status: task.status,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Notify task creator
+    if (task.creatorId) {
+      await this.sendNotificationToAgent(task.creatorId, {
+        type: 'task_update',
+        title: 'Task Updated',
+        message: `Task "${task.title}" has been updated`,
+        data: { taskId: task.id, updateType },
+      });
+    }
+
+    // Notify assignee if exists
+    if (task.assigneeId) {
+      await this.sendNotificationToAgent(task.assigneeId, {
+        type: 'task_update',
+        title: 'Task Updated',
+        message: `Task "${task.title}" has been updated`,
+        data: { taskId: task.id, updateType },
+      });
+    }
   }
 
-  /**
-   * 通知任务完成
-   */
-  notifyTaskCompleted(agentId: string, task: any) {
-    this.sendToAgent(agentId, 'task:completed', task);
+  async emitBidReceived(task: any, bid: any) {
+    // Notify task creator about new bid
+    if (task.creatorId) {
+      await this.sendNotificationToAgent(task.creatorId, {
+        type: 'bid_received',
+        title: 'New Bid Received',
+        message: `New bid on task "${task.title}"`,
+        data: {
+          taskId: task.id,
+          bidId: bid.id,
+          agentId: bid.agentId,
+        },
+      });
+    }
   }
 
-  /**
-   * 获取在线Agent数量
-   */
-  getOnlineAgentCount(): number {
-    return this.connectedAgents.size;
+  async emitBidAccepted(task: any, bid: any) {
+    // Notify bidder
+    await this.sendNotificationToAgent(bid.agentId, {
+      type: 'bid_accepted',
+      title: 'Bid Accepted',
+      message: `Your bid on task "${task.title}" has been accepted!`,
+      data: { taskId: task.id, bidId: bid.id },
+    });
+  }
+
+  async emitTaskCompleted(task: any) {
+    // Notify creator
+    if (task.creatorId) {
+      await this.sendNotificationToAgent(task.creatorId, {
+        type: 'task_completed',
+        title: 'Task Completed',
+        message: `Task "${task.title}" has been completed`,
+        data: { taskId: task.id },
+      });
+    }
+
+    // Notify assignee
+    if (task.assigneeId) {
+      await this.sendNotificationToAgent(task.assigneeId, {
+        type: 'task_completed',
+        title: 'Task Completed',
+        message: `Task "${task.title}" marked as completed`,
+        data: { taskId: task.id, reward: task.reward },
+      });
+    }
+  }
+
+  // Get notification history
+  async getNotificationHistory(
+    agentId: string,
+    options: { page?: number; limit?: number; unreadOnly?: boolean } = {}
+  ) {
+    const { page = 1, limit = 20, unreadOnly = false } = options;
+    const skip = (page - 1) * limit;
+
+    const where: any = { agentId };
+    if (unreadOnly) {
+      where.read = false;
+    }
+
+    const [notifications, total] = await Promise.all([
+      this.prisma.notification.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.notification.count({ where }),
+    ]);
+
+    return {
+      notifications,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  // Mark notification as read
+  async markAsRead(notificationId: string, agentId: string) {
+    return this.prisma.notification.updateMany({
+      where: { id: notificationId, agentId },
+      data: { read: true },
+    });
+  }
+
+  // Mark all as read
+  async markAllAsRead(agentId: string) {
+    return this.prisma.notification.updateMany({
+      where: { agentId, read: false },
+      data: { read: true },
+    });
+  }
+
+  // Send pending notifications on connect
+  private async sendPendingNotifications(client: Socket, agentId: string) {
+    try {
+      const unreadNotifications = await this.prisma.notification.findMany({
+        where: { agentId, read: false },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      });
+
+      if (unreadNotifications.length > 0) {
+        client.emit('notifications:pending', {
+          count: unreadNotifications.length,
+          notifications: unreadNotifications,
+        });
+
+        this.logger.log(
+          `Sent ${unreadNotifications.length} pending notifications to agent ${agentId}`
+        );
+      }
+    } catch (error) {
+      this.logger.error(`Error sending pending notifications: ${error.message}`);
+    }
+  }
+
+  // Get online agents
+  getOnlineAgents(): string[] {
+    return Array.from(this.agentSockets.keys());
+  }
+
+  // Check if agent is online
+  isAgentOnline(agentId: string): boolean {
+    const sockets = this.agentSockets.get(agentId);
+    return sockets !== undefined && sockets.size > 0;
+  }
+
+  // Get connection stats
+  getConnectionStats() {
+    return {
+      totalConnections: this.connectedAgents.size,
+      uniqueAgents: this.agentSockets.size,
+      onlineAgents: this.getOnlineAgents(),
+    };
   }
 }
