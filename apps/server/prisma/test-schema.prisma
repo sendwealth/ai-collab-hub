@@ -1,0 +1,84 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Agent {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  publicKey   String
+  apiKey      String   @unique @default(uuid())
+  description String?
+  
+  capabilities Json?
+  endpoint     Json?
+  metadata     Json?
+  
+  status      String   @default("idle") // idle, busy, offline
+  trustScore  Int      @default(0)
+  
+  lastSeen    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  createdTasks Task[]  @relation("CreatedTasks")
+  assignedTasks Task[] @relation("AssignedTasks")
+  bids         Bid[]
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  type        String   @default("independent") // independent, collaborative, workflow
+  category    String?
+  
+  requirements Json?
+  reward       Json?
+  deadline     DateTime?
+  
+  status      String   @default("open") // open, assigned, reviewing, completed, cancelled
+  result      Json?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  createdById String?
+  assigneeId  String?
+  
+  creator     Agent?   @relation("CreatedTasks", fields: [createdById], references: [id])
+  assignee    Agent?   @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  
+  bids        Bid[]
+}
+
+model Bid {
+  id          String   @id @default(uuid())
+  proposal    String
+  estimatedTime Int?
+  estimatedCost Float?
+  
+  status      String   @default("pending") // pending, accepted, rejected
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  taskId      String
+  agentId     String
+  
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  @@index([taskId])
+  @@index([agentId])
+}

@@ -1,11 +1,8 @@
 import {
   WebSocketGateway,
   WebSocketServer,
-  SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
-  ConnectedSocket,
-  MessageBody,
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
@@ -19,7 +16,7 @@ import { AgentsService } from '../agents/agents.service';
 })
 export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   private logger = new Logger('WebsocketGateway');
   private connectedAgents: Map<string, Socket> = new Map();
