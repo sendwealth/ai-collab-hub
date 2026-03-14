@@ -1,0 +1,11 @@
+{
+  "name": "AI协作平台设计生成器",
+  "id": "ai-collab-designer",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": ["*"]
+  }
+}

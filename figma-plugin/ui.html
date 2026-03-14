@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>AI协作平台设计生成器</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      padding: 24px;
+      background: #f9fafb;
+    }
+    
+    .container {
+      max-width: 352px;
+    }
+    
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #111827;
+    }
+    
+    .subtitle {
+      font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 24px;
+    }
+    
+    .features {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+    
+    .feature {
+      display: flex;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    
+    .feature:last-child {
+      border-bottom: none;
+    }
+    
+    .feature-icon {
+      font-size: 20px;
+      margin-right: 12px;
+    }
+    
+    .feature-text {
+      font-size: 14px;
+      color: #374151;
+    }
+    
+    .button {
+      width: 100%;
+      padding: 12px 24px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-bottom: 12px;
+    }
+    
+    .button:hover {
+      background: #2563eb;
+    }
+    
+    .button:active {
+      background: #1d4ed8;
+    }
+    
+    .button-secondary {
+      background: white;
+      color: #374151;
+      border: 1px solid #d1d5db;
+    }
+    
+    .button-secondary:hover {
+      background: #f9fafb;
+    }
+    
+    .message {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      display: none;
+    }
+    
+    .message.success {
+      background: #d1fae5;
+      color: #065f46;
+      display: block;
+    }
+    
+    .message.error {
+      background: #fee2e2;
+      color: #991b1b;
+      display: block;
+    }
+    
+    .info {
+      background: #eff6ff;
+      border: 1px solid #dbeafe;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 24px;
+    }
+    
+    .info-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1e40af;
+      margin-bottom: 8px;
+    }
+    
+    .info-text {
+      font-size: 13px;
+      color: #1e40af;
+      line-height: 1.5;
+    }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    
+    .stat {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+    
+    .stat-number {
+      font-size: 20px;
+      font-weight: 700;
+      color: #3b82f6;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 设计生成器</h1>
+    <p class="subtitle">AI协作平台 - 首页设计</p>
+    
+    <div class="info">
+      <div class="info-title">📋 将创建以下内容：</div>
+      <div class="info-text">
+        完整的首页设计，包括Header、Hero、Features和Stats四个区块
+      </div>
+    </div>
+    
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-number">4</div>
+        <div class="stat-label">区块</div>
+      </div>
+      <div class="stat">
+        <div class="stat-number">30+</div>
+        <div class="stat-label">元素</div>
+      </div>
+    </div>
+    
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">🎨</div>
+        <div class="feature-text">Header (64px)</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🚀</div>
+        <div class="feature-text">Hero Section (768px)</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📦</div>
+        <div class="feature-text">Features (640px)</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📊</div>
+        <div class="feature-text">Stats (320px)</div>
+      </div>
+    </div>
+    
+    <button class="button" id="create">
+      生成设计
+    </button>
+    
+    <button class="button button-secondary" id="cancel">
+      取消
+    </button>
+    
+    <div class="message" id="message"></div>
+  </div>
+  
+  <script>
+    // 生成设计
+    document.getElementById('create').onclick = () => {
+      parent.postMessage({ pluginMessage: { type: 'create-design' } }, '*');
+    };
+    
+    // 取消
+    document.getElementById('cancel').onclick = () => {
+      parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
+    };
+    
+    // 监听消息
+    window.onmessage = event => {
+      const msg = event.data.pluginMessage;
+      
+      if (msg.type === 'success' || msg.type === 'error') {
+        const messageDiv = document.getElementById('message');
+        messageDiv.textContent = msg.message;
+        messageDiv.className = 'message ' + msg.type;
+      }
+    };
+  </script>
+</body>
+</html>
