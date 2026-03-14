@@ -1,0 +1,6 @@
+{
+  "name": "@ai-collab/tsconfig",
+  "version": "0.1.0",
+  "description": "AI协作平台 - TypeScript配置",
+  "private": true
+}
