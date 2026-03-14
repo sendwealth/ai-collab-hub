@@ -1,22 +1,21 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
-import { CreateTaskDto, TaskQueryDto, BidTaskDto, SubmitTaskDto } from './dto';
-import { AgentAuthGuard } from '../auth/guards/agent-auth.guard';
+import { CreateTaskDto, BidTaskDto, SubmitTaskDto } from './dto';
 
 describe('TasksController', () => {
   let controller: TasksController;
   let service: TasksService;
 
   const mockTasksService = {
-    createTask: jest.fn(),
-    getTasks: jest.fn(),
-    getTask: jest.fn(),
+    create: jest.fn(),
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+    getMyTasks: jest.fn(),
     bidTask: jest.fn(),
     acceptBid: jest.fn(),
     submitTask: jest.fn(),
     completeTask: jest.fn(),
-    getMyTasks: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -28,16 +27,7 @@ describe('TasksController', () => {
           useValue: mockTasksService,
         },
       ],
-    })
-      .overrideGuard(AgentAuthGuard)
-      .useValue({
-        canActivate: (context: any) => {
-          const request = context.switchToHttp().getRequest();
-          request.agent = { id: 'test-agent-id' };
-          return true;
-        },
-      })
-      .compile();
+    }).compile();
 
     controller = module.get<TasksController>(TasksController);
     service = module.get<TasksService>(TasksService);
@@ -47,148 +37,62 @@ describe('TasksController', () => {
     jest.clearAllMocks();
   });
 
-  describe('createTask', () => {
-    it('should create a new task', async () => {
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+
+  describe('create', () => {
+    it('should create a task', async () => {
       const createTaskDto: CreateTaskDto = {
         title: 'Test Task',
-        description: 'Test description',
-        category: 'code-review',
+        description: 'Test Description',
+        category: 'testing',
+        reward: { credits: 100 },
       };
 
-      mockTasksService.createTask.mockResolvedValue({
-        taskId: 'task-id',
-        task: { id: 'task-id', ...createTaskDto },
+      mockTasksService.create.mockResolvedValue({
+        id: 'task-id',
+        ...createTaskDto,
       });
 
-      const result = await controller.createTask('agent-id', createTaskDto);
+      const result = await controller.create(createTaskDto, 'creator-id');
 
-      expect(result).toHaveProperty('taskId');
-      expect(service.createTask).toHaveBeenCalledWith('agent-id', createTaskDto);
+      expect(result.id).toBe('task-id');
+      expect(service.create).toHaveBeenCalledWith('creator-id', createTaskDto);
     });
   });
 
-  describe('getTasks', () => {
-    it('should return list of tasks', async () => {
+  describe('findAll', () => {
+    it('should return array of tasks', async () => {
       const mockTasks = [
         { id: 'task-1', title: 'Task 1' },
         { id: 'task-2', title: 'Task 2' },
       ];
 
-      mockTasksService.getTasks.mockResolvedValue({
+      mockTasksService.findAll.mockResolvedValue({
         total: 2,
         tasks: mockTasks,
       });
 
-      const query: TaskQueryDto = { limit: 10, offset: 0 };
-      const result = await controller.getTasks(query);
+      const result = await controller.findAll({});
 
       expect(result.total).toBe(2);
       expect(result.tasks).toHaveLength(2);
-      expect(service.getTasks).toHaveBeenCalledWith(query);
-    });
-
-    it('should filter tasks by status', async () => {
-      mockTasksService.getTasks.mockResolvedValue({
-        total: 1,
-        tasks: [{ id: 'task-1', status: 'open' }],
-      });
-
-      const query: TaskQueryDto = { status: 'open' };
-      await controller.getTasks(query);
-
-      expect(service.getTasks).toHaveBeenCalledWith(query);
-    });
-
-    it('should filter tasks by category', async () => {
-      mockTasksService.getTasks.mockResolvedValue({
-        total: 1,
-        tasks: [{ id: 'task-1', category: 'code-review' }],
-      });
-
-      const query: TaskQueryDto = { category: 'code-review' };
-      await controller.getTasks(query);
-
-      expect(service.getTasks).toHaveBeenCalledWith(query);
+      expect(service.findAll).toHaveBeenCalledWith({});
     });
   });
 
-  describe('getTask', () => {
-    it('should return task details', async () => {
-      const mockTask = {
+  describe('findOne', () => {
+    it('should return a task', async () => {
+      mockTasksService.findOne.mockResolvedValue({
         id: 'task-id',
         title: 'Test Task',
-        status: 'open',
-      };
-
-      mockTasksService.getTask.mockResolvedValue(mockTask);
-
-      const result = await controller.getTask('task-id');
-
-      expect(result).toEqual(mockTask);
-      expect(service.getTask).toHaveBeenCalledWith('task-id');
-    });
-  });
-
-  describe('bidTask', () => {
-    it('should create a bid', async () => {
-      const bidDto: BidTaskDto = {
-        proposal: 'I can do this',
-        estimatedTime: 3600,
-      };
-
-      mockTasksService.bidTask.mockResolvedValue({
-        bidId: 'bid-id',
-        bid: { id: 'bid-id', ...bidDto },
       });
 
-      const result = await controller.bidTask('agent-id', 'task-id', bidDto);
+      const result = await controller.findOne('task-id');
 
-      expect(result).toHaveProperty('bidId');
-      expect(service.bidTask).toHaveBeenCalledWith('agent-id', 'task-id', bidDto);
-    });
-  });
-
-  describe('acceptBid', () => {
-    it('should accept a bid', async () => {
-      mockTasksService.acceptBid.mockResolvedValue({
-        task: { id: 'task-id', status: 'assigned' },
-        bid: { id: 'bid-id', status: 'accepted' }
-      });
-
-      const result = await controller.acceptBid('agent-id', 'task-id', 'bid-id');
-
-      expect(result.task.status).toBe('assigned');
-      expect(service.acceptBid).toHaveBeenCalledWith('agent-id', 'task-id', 'bid-id');
-    });
-  });
-
-  describe('submitTask', () => {
-    it('should submit task result', async () => {
-      const submitDto: SubmitTaskDto = {
-        result: { review: 'Good code' },
-      };
-
-      mockTasksService.submitTask.mockResolvedValue({
-        task: { id: 'task-id', status: 'reviewing', result: submitDto.result },
-      });
-
-      const result = await controller.submitTask('agent-id', 'task-id', submitDto);
-
-      expect(result.task.status).toBe('reviewing');
-      expect(service.submitTask).toHaveBeenCalledWith('agent-id', 'task-id', submitDto);
-    });
-  });
-
-  describe('completeTask', () => {
-    it('should complete task with rating', async () => {
-      mockTasksService.completeTask.mockResolvedValue({
-        task: { id: 'task-id', status: 'completed' },
-      });
-
-      const result = await controller.completeTask('agent-id', 'task-id', 5);
-
-      expect(result.task.status).toBe('completed');
-      expect(service.completeTask).toHaveBeenCalledWith('agent-id', 'task-id', 5);
+      expect(result.id).toBe('task-id');
+      expect(service.findOne).toHaveBeenCalledWith('task-id');
     });
   });
 
@@ -208,7 +112,7 @@ describe('TasksController', () => {
 
       expect(result.total).toBe(2);
       expect(result.tasks).toHaveLength(2);
-      expect(service.getMyTasks).toHaveBeenCalledWith('agent-id', undefined);
+      expect(service.getMyTasks).toHaveBeenCalledWith('agent-id', {});
     });
 
     it('should filter my tasks by status', async () => {
@@ -219,7 +123,70 @@ describe('TasksController', () => {
 
       await controller.getMyTasks('agent-id', 'completed');
 
-      expect(service.getMyTasks).toHaveBeenCalledWith('agent-id', 'completed');
+      expect(service.getMyTasks).toHaveBeenCalledWith('agent-id', { status: 'completed' });
+    });
+  });
+
+  describe('bidTask', () => {
+    it('should create a bid', async () => {
+      const bidDto: BidTaskDto = {
+        proposal: 'I can do this',
+        estimatedTime: 3600,
+      };
+
+      mockTasksService.bidTask.mockResolvedValue({
+        bidId: 'bid-id',
+        bid: { id: 'bid-id', ...bidDto },
+      });
+
+      const result = await controller.bidTask('agent-id', 'task-id', bidDto);
+
+      expect(result).toHaveProperty('bidId');
+      expect(service.bidTask).toHaveBeenCalledWith('task-id', 'agent-id', bidDto);
+    });
+  });
+
+  describe('acceptBid', () => {
+    it('should accept a bid', async () => {
+      mockTasksService.acceptBid.mockResolvedValue({
+        task: { id: 'task-id', status: 'assigned' },
+        bid: { id: 'bid-id', status: 'accepted' }
+      });
+
+      const result = await controller.acceptBid('agent-id', 'task-id', 'bid-id');
+
+      expect(result.task.status).toBe('assigned');
+      expect(service.acceptBid).toHaveBeenCalledWith('task-id', 'bid-id', 'agent-id');
+    });
+  });
+
+  describe('submitTask', () => {
+    it('should submit task result', async () => {
+      const submitDto: SubmitTaskDto = {
+        result: { review: 'Good code' },
+      };
+
+      mockTasksService.submitTask.mockResolvedValue({
+        task: { id: 'task-id', status: 'reviewing', result: submitDto.result },
+      });
+
+      const result = await controller.submitTask('agent-id', 'task-id', submitDto);
+
+      expect(result.task.status).toBe('reviewing');
+      expect(service.submitTask).toHaveBeenCalledWith('task-id', 'agent-id', submitDto);
+    });
+  });
+
+  describe('completeTask', () => {
+    it('should complete task with rating', async () => {
+      mockTasksService.completeTask.mockResolvedValue({
+        task: { id: 'task-id', status: 'completed' },
+      });
+
+      const result = await controller.completeTask('agent-id', 'task-id', 5);
+
+      expect(result.task.status).toBe('completed');
+      expect(service.completeTask).toHaveBeenCalledWith('task-id', 'agent-id', { rating: 5 });
     });
   });
 });

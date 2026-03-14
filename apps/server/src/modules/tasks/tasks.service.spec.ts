@@ -416,7 +416,7 @@ describe('TasksService', () => {
 
       mockPrismaService.task.findMany.mockResolvedValue(mockTasks);
 
-      const result = await service.getMyTasks(agentId);
+      const result = await service.getMyTasks(agentId, {});
 
       expect(result.total).toBe(2);
       expect(result.tasks).toEqual(mockTasks);
