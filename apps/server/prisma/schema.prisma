@@ -1,11 +1,12 @@
-// Prisma Schema for AI Collab Platform (MVP)
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -18,97 +19,85 @@ model Agent {
   name          String        @unique
   description   String?
   publicKey     String        @map("public_key")
-  apiKey        String        @unique @map("api_key")
-  capabilities  Json          @default("{}")
-  endpoint      Json          @default("{}")
-  metadata      Json          @default("{}")
-  status        AgentStatus   @default(idle)
+  apiKey        String        @unique @default(uuid()) @map("api_key")
+
+  // SQLite不支持Json，使用String存储JSON字符串
+  capabilities  String?       // JSON string
+  endpoint      String?       // JSON string
+  metadata      String?       // JSON string
+
+  status        String        @default("idle") // idle, busy, offline
   trustScore    Int           @default(0) @map("trust_score")
+
+  lastSeen      DateTime?     @map("last_seen")
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
-  lastSeen      DateTime?     @map("last_seen")
 
-  // 关系
+  // Relations
+  createdTasks  Task[]        @relation("CreatedTasks")
+  assignedTasks Task[]        @relation("AssignedTasks")
   bids          Bid[]
-  createdTasks  Task[]        @relation("TaskCreator")
-  assignedTasks Task[]        @relation("TaskAssignee")
 
   @@map("agents")
 }
 
-enum AgentStatus {
-  idle
-  busy
-  offline
-}
-
 // ============================================
-// 任务
+// Task
 // ============================================
 
 model Task {
-  id           String      @id @default(uuid())
-  title        String
-  description  String?     @db.Text
-  type         String      @default("independent")
-  category     String?
-  requirements Json        @default("{}")
-  reward       Json        @default("{}")
-  status       TaskStatus  @default(open)
-  result       Json?
-  createdById  String      @map("created_by_id")
-  assigneeId   String?     @map("assignee_id")
+  id          String      @id @default(uuid())
+  title       String
+  description String?
+  type        String      @default("independent") // independent, collaborative, workflow
+  category    String?
+
+  // SQLite不支持Json，使用String存储JSON字符串
+  requirements String?    // JSON string
+  reward       String?    // JSON string
+  result       String?    // JSON string
   deadline     DateTime?
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
-  completedAt  DateTime?   @map("completed_at")
 
-  // 关系
-  createdBy    Agent       @relation("TaskCreator", fields: [createdById], references: [id])
-  assignee     Agent?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  bids         Bid[]
+  status      String      @default("open") // open, assigned, reviewing, completed, cancelled
 
-  @@index([status])
-  @@index([createdById])
-  @@index([assigneeId])
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  createdById String?     @map("created_by_id")
+  assigneeId  String?     @map("assignee_id")
+
+  creator     Agent?      @relation("CreatedTasks", fields: [createdById], references: [id])
+  assignee    Agent?      @relation("AssignedTasks", fields: [assigneeId], references: [id])
+
+  bids        Bid[]
+
   @@map("tasks")
 }
 
-enum TaskStatus {
-  open
-  assigned
-  running
-  reviewing
-  completed
-  failed
-  cancelled
-}
-
 // ============================================
-// 竞标
+// Bid
 // ============================================
 
 model Bid {
-  id            String      @id @default(uuid())
-  taskId        String      @map("task_id")
-  agentId       String      @map("agent_id")
-  proposal      String      @db.Text
-  estimatedTime Int?        @map("estimated_time")
-  estimatedCost Int?        @map("estimated_cost")
-  status        BidStatus   @default(pending)
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  id            String    @id @default(uuid())
+  proposal      String
+  estimatedTime Int?      @map("estimated_time")
+  estimatedCost Float?    @map("estimated_cost")
 
-  // 关系
-  task          Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  agent         Agent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  status        String    @default("pending") // pending, accepted, rejected
 
-  @@unique([taskId, agentId])
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  taskId        String    @map("task_id")
+  agentId       String    @map("agent_id")
+
+  task          Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agent         Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([agentId])
   @@map("bids")
-}
-
-enum BidStatus {
-  pending
-  accepted
-  rejected
 }

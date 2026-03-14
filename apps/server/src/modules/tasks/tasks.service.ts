@@ -1,20 +1,10 @@
-import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import {
-  CreateTaskDto,
-  BidTaskDto,
-  SubmitTaskDto,
-  TaskQueryDto,
-} from './dto';
+import { CreateTaskDto, BidTaskDto, SubmitTaskDto, CompleteTaskDto } from './dto';
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) {}
 
   /**
    * 创建任务
@@ -26,69 +16,85 @@ export class TasksService {
         description: createTaskDto.description,
         type: createTaskDto.type || 'independent',
         category: createTaskDto.category,
-        requirements: createTaskDto.requirements || {},
-        reward: createTaskDto.reward || { credits: 10 },
-        status: 'open',
+        requirements: createTaskDto.requirements ? JSON.stringify(createTaskDto.requirements) : null,
+        reward: createTaskDto.reward ? JSON.stringify(createTaskDto.reward) : JSON.stringify({ credits: 10 }),
+        deadline: createTaskDto.deadline ? new Date(createTaskDto.deadline) : null,
         createdById: creatorId,
-        deadline: createTaskDto.deadline
-          ? new Date(createTaskDto.deadline)
-          : null,
       },
     });
 
     return {
       taskId: task.id,
-      message: 'Task created successfully',
-      task,
+      task: {
+        ...task,
+        requirements: task.requirements ? JSON.parse(task.requirements) : null,
+        reward: task.reward ? JSON.parse(task.reward) : null,
+      },
     };
   }
 
   /**
    * 浏览任务
    */
-  async getTasks(query: TaskQueryDto) {
+  async getTasks(filters: {
+    status?: string;
+    category?: string;
+    type?: string;
+    limit?: number;
+    offset?: number;
+  }) {
     const where: any = {};
 
-    if (query.status) {
-      where.status = query.status;
+    if (filters.status) {
+      where.status = filters.status;
+    }
+    if (filters.category) {
+      where.category = filters.category;
+    }
+    if (filters.type) {
+      where.type = filters.type;
     }
 
-    if (query.category) {
-      where.category = query.category;
-    }
+    const limit = filters.limit || 20;
+    const offset = filters.offset || 0;
 
-    if (query.type) {
-      where.type = query.type;
-    }
-
-    const tasks = await this.prisma.task.findMany({
-      where,
-      include: {
-        bids: {
-          select: {
-            id: true,
-            agentId: true,
-            status: true,
-            createdAt: true,
+    const [tasks, total] = await Promise.all([
+      this.prisma.task.findMany({
+        where,
+        include: {
+          creator: {
+            select: {
+              id: true,
+              name: true,
+              trustScore: true,
+            },
+          },
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              trustScore: true,
+            },
+          },
+          _count: {
+            select: { bids: true },
           },
         },
-        _count: {
-          select: { bids: true },
+        orderBy: {
+          createdAt: 'desc',
         },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: query.limit || 20,
-      skip: query.offset || 0,
-    });
-
-    const total = await this.prisma.task.count({ where });
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.task.count({ where }),
+    ]);
 
     return {
       total,
-      tasks: tasks.map((task: any) => ({
+      tasks: tasks.map((task) => ({
         ...task,
+        requirements: task.requirements ? JSON.parse(task.requirements) : null,
+        reward: task.reward ? JSON.parse(task.reward) : null,
         bidCount: task._count.bids,
       })),
     };
@@ -112,6 +118,20 @@ export class TasksService {
             },
           },
         },
+        creator: {
+          select: {
+            id: true,
+            name: true,
+            trustScore: true,
+          },
+        },
+        assignee: {
+          select: {
+            id: true,
+            name: true,
+            trustScore: true,
+          },
+        },
       },
     });
 
@@ -119,14 +139,22 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
-    return task;
+    return {
+      ...task,
+      requirements: task.requirements ? JSON.parse(task.requirements) : null,
+      reward: task.reward ? JSON.parse(task.reward) : null,
+      result: task.result ? JSON.parse(task.result) : null,
+      bids: task.bids.map((bid) => ({
+        ...bid,
+      })),
+    };
   }
 
   /**
    * 竞标任务
    */
-  async bidTask(agentId: string, taskId: string, bidTaskDto: BidTaskDto) {
-    // 检查任务是否存在且状态为open
+  async bidTask(taskId: string, agentId: string, bidTaskDto: BidTaskDto) {
+    // 检查任务是否存在
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
     });
@@ -139,7 +167,7 @@ export class TasksService {
       throw new ConflictException('Task is not open for bidding');
     }
 
-    // 检查是否已经竞标过
+    // 检查是否已经竞标
     const existingBid = await this.prisma.bid.findFirst({
       where: {
         taskId,
@@ -151,7 +179,6 @@ export class TasksService {
       throw new ConflictException('You have already bid on this task');
     }
 
-    // 创建竞标
     const bid = await this.prisma.bid.create({
       data: {
         taskId,
@@ -159,22 +186,19 @@ export class TasksService {
         proposal: bidTaskDto.proposal,
         estimatedTime: bidTaskDto.estimatedTime,
         estimatedCost: bidTaskDto.estimatedCost,
-        status: 'pending',
       },
     });
 
     return {
       bidId: bid.id,
-      message: 'Bid submitted successfully',
       bid,
     };
   }
 
   /**
-   * 接受竞标（分配任务）
+   * 接受竞标
    */
-  async acceptBid(creatorId: string, taskId: string, bidId: string) {
-    // 检查任务
+  async acceptBid(taskId: string, bidId: string, agentId: string) {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
     });
@@ -183,15 +207,10 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
-    if (task.createdById !== creatorId) {
-      throw new ForbiddenException('You are not the creator of this task');
+    if (task.createdById !== agentId) {
+      throw new ConflictException('Only task creator can accept bids');
     }
 
-    if (task.status !== 'open') {
-      throw new ConflictException('Task is not open');
-    }
-
-    // 检查竞标
     const bid = await this.prisma.bid.findUnique({
       where: { id: bidId },
     });
@@ -226,16 +245,19 @@ export class TasksService {
     });
 
     return {
-      message: 'Task assigned successfully',
-      task: updatedTask,
+      task: {
+        ...updatedTask,
+        requirements: updatedTask.requirements ? JSON.parse(updatedTask.requirements) : null,
+        reward: updatedTask.reward ? JSON.parse(updatedTask.reward) : null,
+      },
+      bid,
     };
   }
 
   /**
    * 提交任务结果
    */
-  async submitTask(agentId: string, taskId: string, submitTaskDto: SubmitTaskDto) {
-    // 检查任务
+  async submitTask(taskId: string, agentId: string, submitTaskDto: SubmitTaskDto) {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
     });
@@ -245,33 +267,31 @@ export class TasksService {
     }
 
     if (task.assigneeId !== agentId) {
-      throw new ForbiddenException('You are not assigned to this task');
+      throw new ConflictException('Only assignee can submit task');
     }
 
-    if (task.status !== 'assigned') {
-      throw new ConflictException('Task is not in assigned status');
-    }
-
-    // 更新任务
     const updatedTask = await this.prisma.task.update({
       where: { id: taskId },
       data: {
         status: 'reviewing',
-        result: submitTaskDto.result,
+        result: submitTaskDto.result ? JSON.stringify(submitTaskDto.result) : null,
       },
     });
 
     return {
-      message: 'Task submitted successfully',
-      task: updatedTask,
+      task: {
+        ...updatedTask,
+        requirements: updatedTask.requirements ? JSON.parse(updatedTask.requirements) : null,
+        reward: updatedTask.reward ? JSON.parse(updatedTask.reward) : null,
+        result: updatedTask.result ? JSON.parse(updatedTask.result) : null,
+      },
     };
   }
 
   /**
    * 完成任务
    */
-  async completeTask(creatorId: string, taskId: string, rating?: number) {
-    // 检查任务
+  async completeTask(taskId: string, agentId: string, completeTaskDto: CompleteTaskDto) {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
     });
@@ -280,55 +300,76 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
-    if (task.createdById !== creatorId) {
-      throw new ForbiddenException('You are not the creator of this task');
+    if (task.createdById !== agentId) {
+      throw new ConflictException('Only task creator can complete task');
     }
 
-    if (task.status !== 'reviewing') {
-      throw new ConflictException('Task is not in reviewing status');
-    }
+    const rating = completeTaskDto.rating || 5;
 
-    // 更新任务
     const updatedTask = await this.prisma.task.update({
       where: { id: taskId },
       data: {
         status: 'completed',
-        completedAt: new Date(),
-        result: {
-          ...((task.result as object) || {}),
+        result: JSON.stringify({
+          ...((task.result ? JSON.parse(task.result) : {}) as object),
           rating,
-        },
+        }),
+        updatedAt: new Date(),
       },
     });
 
-    // 更新Agent信任分（简单版）
+    // 更新Agent信任分
     if (task.assigneeId) {
       await this.updateAgentTrustScore(task.assigneeId);
     }
 
     return {
-      message: 'Task completed successfully',
-      task: updatedTask,
+      task: {
+        ...updatedTask,
+        requirements: updatedTask.requirements ? JSON.parse(updatedTask.requirements) : null,
+        reward: updatedTask.reward ? JSON.parse(updatedTask.reward) : null,
+        result: updatedTask.result ? JSON.parse(updatedTask.result) : null,
+      },
     };
   }
 
   /**
-   * 获取Agent的任务
+   * 获取我的任务
    */
-  async getMyTasks(agentId: string, status?: string) {
-    const where: any = {
-      OR: [
-        { createdById: agentId },
-        { assigneeId: agentId },
-      ],
-    };
+  async getMyTasks(agentId: string, filters: { status?: string; role?: string }) {
+    const where: any = {};
 
-    if (status) {
-      where.status = status;
+    if (filters.role === 'creator') {
+      where.createdById = agentId;
+    } else if (filters.role === 'assignee') {
+      where.assigneeId = agentId;
+    } else {
+      where.OR = [{ createdById: agentId }, { assigneeId: agentId }];
+    }
+
+    if (filters.status) {
+      where.status = filters.status;
     }
 
     const tasks = await this.prisma.task.findMany({
       where,
+      include: {
+        creator: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        assignee: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        _count: {
+          select: { bids: true },
+        },
+      },
       orderBy: {
         createdAt: 'desc',
       },
@@ -336,19 +377,23 @@ export class TasksService {
 
     return {
       total: tasks.length,
-      tasks,
+      tasks: tasks.map((task) => ({
+        ...task,
+        requirements: task.requirements ? JSON.parse(task.requirements) : null,
+        reward: task.reward ? JSON.parse(task.reward) : null,
+        bidCount: task._count.bids,
+      })),
     };
   }
 
   /**
-   * 更新Agent信任分（简单版）
+   * 更新Agent信任分
    */
   private async updateAgentTrustScore(agentId: string) {
-    // 获取Agent的所有任务
     const tasks = await this.prisma.task.findMany({
       where: {
         assigneeId: agentId,
-        status: { in: ['completed', 'failed'] },
+        status: 'completed',
       },
     });
 
@@ -357,23 +402,23 @@ export class TasksService {
     }
 
     // 计算完成率
-    const completedTasks = tasks.filter((t: any) => t.status === 'completed');
+    const completedTasks = tasks.filter((t) => t.status === 'completed');
     const completionRate = completedTasks.length / tasks.length;
 
     // 计算平均质量（如果有rating）
     const ratedTasks = completedTasks.filter(
-      (t: any) => (t.result as any)?.rating,
+      (t) => t.result && JSON.parse(t.result).rating,
     );
     const avgQuality =
       ratedTasks.length > 0
-        ? ratedTasks.reduce((sum: number, t: any) => sum + (t.result as any).rating, 0) /
-          ratedTasks.length / 5
+        ? ratedTasks.reduce((sum, t) => sum + JSON.parse(t.result!).rating, 0) /
+          ratedTasks.length /
+          5
         : 0.5;
 
     // 简单加权
     const trustScore = Math.round(completionRate * 50 + avgQuality * 50);
 
-    // 更新
     await this.prisma.agent.update({
       where: { id: agentId },
       data: { trustScore },

@@ -17,7 +17,7 @@ import {
 import { AgentAuthGuard } from '../auth/guards/agent-auth.guard';
 import { Agent } from '../auth/decorators/agent.decorator';
 
-@Controller('api/v1/tasks')
+@Controller('tasks')
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
@@ -52,8 +52,9 @@ export class TasksController {
   async getMyTasks(
     @Agent('id') agentId: string,
     @Query('status') status?: string,
+    @Query('role') role?: string,
   ) {
-    return this.tasksService.getMyTasks(agentId, status);
+    return this.tasksService.getMyTasks(agentId, { status, role });
   }
 
   /**
@@ -76,7 +77,7 @@ export class TasksController {
     @Param('id') taskId: string,
     @Body() bidTaskDto: BidTaskDto,
   ) {
-    return this.tasksService.bidTask(agentId, taskId, bidTaskDto);
+    return this.tasksService.bidTask(taskId, agentId, bidTaskDto);
   }
 
   /**
@@ -90,7 +91,7 @@ export class TasksController {
     @Param('id') taskId: string,
     @Body('bidId') bidId: string,
   ) {
-    return this.tasksService.acceptBid(agentId, taskId, bidId);
+    return this.tasksService.acceptBid(taskId, bidId, agentId);
   }
 
   /**
@@ -104,7 +105,7 @@ export class TasksController {
     @Param('id') taskId: string,
     @Body() submitTaskDto: SubmitTaskDto,
   ) {
-    return this.tasksService.submitTask(agentId, taskId, submitTaskDto);
+    return this.tasksService.submitTask(taskId, agentId, submitTaskDto);
   }
 
   /**
@@ -118,6 +119,6 @@ export class TasksController {
     @Param('id') taskId: string,
     @Body('rating') rating?: number,
   ) {
-    return this.tasksService.completeTask(agentId, taskId, rating);
+    return this.tasksService.completeTask(taskId, agentId, { rating });
   }
 }

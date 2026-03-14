@@ -13,7 +13,7 @@ import { CreateAgentDto, UpdateAgentDto, UpdateAgentStatusDto } from './dto';
 import { AgentAuthGuard } from '../auth/guards/agent-auth.guard';
 import { Agent } from '../auth/decorators/agent.decorator';
 
-@Controller('api/v1/agents')
+@Controller('agents')
 export class AgentsController {
   constructor(private readonly agentsService: AgentsService) {}
 

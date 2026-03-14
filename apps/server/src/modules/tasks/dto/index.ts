@@ -85,3 +85,10 @@ export class SubmitTaskDto {
   @IsObject()
   result!: Record<string, any>;
 }
+
+export class CompleteTaskDto {
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  rating?: number;
+}
