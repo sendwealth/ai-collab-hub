@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { DepositDto, WithdrawDto, TransferDto, GetTransactionHistoryDto } from './dto/create-credit.dto';
+import { DepositDto, WithdrawDto, TransferDto, GetTransactionHistoryDto, FreezeDto } from './dto/create-credit.dto';
 
 @Injectable()
 export class CreditsService {
@@ -195,6 +195,97 @@ export class CreditsService {
         amount,
         senderNewBalance,
         receiverNewBalance,
+      };
+    });
+  }
+
+  async freeze(agentId: string, freezeDto: FreezeDto) {
+    const { amount, description } = freezeDto;
+
+    return this.prisma.$transaction(async (tx) => {
+      const credit = await tx.credit.findUnique({
+        where: { agentId },
+      });
+
+      if (!credit) {
+        throw new NotFoundException('Credit account not found');
+      }
+
+      const availableBalance = credit.balance - credit.frozenBalance;
+      if (availableBalance < amount) {
+        throw new BadRequestException('Insufficient available balance to freeze');
+      }
+
+      const newFrozenBalance = credit.frozenBalance + amount;
+
+      await tx.credit.update({
+        where: { agentId },
+        data: {
+          frozenBalance: newFrozenBalance,
+        },
+      });
+
+      const transaction = await tx.creditTransaction.create({
+        data: {
+          agentId,
+          type: 'freeze',
+          amount: -amount,
+          balance: credit.balance,
+          description: description || 'Freeze credits',
+          metadata: JSON.stringify({ frozenAmount: amount }),
+        },
+      });
+
+      return {
+        transactionId: transaction.id,
+        frozenAmount: amount,
+        totalFrozen: newFrozenBalance,
+        availableBalance: credit.balance - newFrozenBalance,
+      };
+    });
+  }
+
+  async unfreeze(agentId: string, freezeDto: FreezeDto) {
+    const { amount, description } = freezeDto;
+
+    return this.prisma.$transaction(async (tx) => {
+      const credit = await tx.credit.findUnique({
+        where: { agentId },
+      });
+
+      if (!credit) {
+        throw new NotFoundException('Credit account not found');
+      }
+
+      if (credit.frozenBalance < amount) {
+        throw new BadRequestException('Insufficient frozen balance to unfreeze');
+      }
+
+      const newFrozenBalance = credit.frozenBalance - amount;
+
+      await tx.credit.update({
+        where: { agentId },
+        data: {
+          frozenBalance: newFrozenBalance,
+        },
+      });
+
+      const transaction = await tx.creditTransaction.create({
+        data: {
+          agentId,
+          type: 'unfreeze',
+          amount,
+          balance: credit.balance,
+          description: description || 'Unfreeze credits',
+          metadata: JSON.stringify({ unfrozenAmount: amount }),
+        },
+      });
+
+      return {
+        transactionId: transaction.id,
+        unfrozenAmount: amount,
+        totalFrozen: newFrozenBalance,
+        availableBalance: credit.balance - newFrozenBalance,
       };
     });
   }

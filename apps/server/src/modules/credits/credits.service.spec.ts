@@ -1091,6 +1091,282 @@ describe('CreditsService', () => {
     });
   });
 
+  describe('freeze', () => {
+    it('should freeze credits successfully', async () => {
+      const freezeDto = {
+        amount: 100,
+        description: 'Test freeze',
+      };
+
+      const mockCredit = {
+        agentId: 'agent-1',
+        balance: 500,
+        frozenBalance: 0,
+      };
+
+      const mockTransaction = {
+        id: 'tx-1',
+        agentId: 'agent-1',
+        type: 'freeze',
+        amount: -100,
+        balance: 500,
+      };
+
+      mockPrismaService.credit.findUnique.mockResolvedValue(mockCredit);
+      mockPrismaService.credit.update.mockResolvedValue({
+        ...mockCredit,
+        frozenBalance: 100,
+      });
+      mockPrismaService.creditTransaction.create.mockResolvedValue(mockTransaction);
+
+      const result = await service.freeze('agent-1', freezeDto);
+
+      expect(result).toEqual({
+        transactionId: 'tx-1',
+        frozenAmount: 100,
+        totalFrozen: 100,
+        availableBalance: 400,
+      });
+    });
+
+    it('should throw BadRequestException for insufficient available balance', async () => {
+      const freezeDto = { amount: 1000 };
+
+      const mockCredit = {
+        agentId: 'agent-1',
+        balance: 500,
+        frozenBalance: 0,
+      };
+
+      mockPrismaService.credit.findUnique.mockResolvedValue(mockCredit);
+
+      await expect(service.freeze('agent-1', freezeDto)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw NotFoundException for non-existing account', async () => {
+      const freezeDto = { amount: 100 };
+
+      mockPrismaService.credit.findUnique.mockResolvedValue(null);
+
+      await expect(service.freeze('agent-invalid', freezeDto)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should use default description if not provided', async () => {
+      const freezeDto = { amount: 100 };
+
+      const mockCredit = {
+        agentId: 'agent-1',
+        balance: 500,
+        frozenBalance: 0,
+      };
+
+      mockPrismaService.credit.findUnique.mockResolvedValue(mockCredit);
+      mockPrismaService.creditTransaction.create.mockResolvedValue({ id: 'tx-1' });
+
+      await service.freeze('agent-1', freezeDto);
+
+      expect(prisma.creditTransaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          description: 'Freeze credits',
+        }),
+      });
+    });
+
+    it('should create freeze type transaction', async () => {
+      const freezeDto = { amount: 100 };
+
+      const mockCredit = {
+        agentId: 'agent-1',
+        balance: 500,
+        frozenBalance: 0,
+      };
+
+      mockPrismaService.credit.findUnique.mockResolvedValue(mockCredit);
+      mockPrismaService.creditTransaction.create.mockResolvedValue({ id: 'tx-1' });
+
+      await service.freeze('agent-1', freezeDto);
+
+      expect(prisma.creditTransaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          type: 'freeze',
+        }),
+      });
+    });
+
+    it('should update frozenBalance correctly', async () => {
+      const freezeDto = { amount: 150 };
+
+      const mockCredit = {
+        agentId: 'agent-1',
+        balance: 500,
+        frozenBalance: 100,
+      };
+
+      mockPrismaService.credit.findUnique.mockResolvedValue(mockCredit);
+      mockPrismaService.creditTransaction.create.mockResolvedValue({ id: 'tx-1' });
+
+      await service.freeze('agent-1', freezeDto);
+
+      expect(prisma.credit.update).toHaveBeenCalledWith({
+        where: { agentId: 'agent-1' },
+        data: {
+          frozenBalance: 250,
+        },
+      });
+    });
+  });
+
+  describe('unfreeze', () => {
+    it('should unfreeze credits successfully', async () => {
+      const freezeDto = {
+        amount: 100,
+        description: 'Test unfreeze',
+      };
+
+      const mockCredit = {
+        agentId: 'agent-1',
+        balance: 500,
+        frozenBalance: 200,
+      };
+
+      const mockTransaction = {
+        id: 'tx-1',
+        agentId: 'agent-1',
+        type: 'unfreeze',
+        amount: 100,
+        balance: 500,
+      };
+
+      mockPrismaService.credit.findUnique.mockResolvedValue(mockCredit);
+      mockPrismaService.credit.update.mockResolvedValue({
+        ...mockCredit,
+        frozenBalance: 100,
+      });
+      mockPrismaService.creditTransaction.create.mockResolvedValue(mockTransaction);
+
+      const result = await service.unfreeze('agent-1', freezeDto);
+
+      expect(result).toEqual({
+        transactionId: 'tx-1',
+        unfrozenAmount: 100,
+        totalFrozen: 100,
+        availableBalance: 400,
+      });
+    });
+
+    it('should throw BadRequestException for insufficient frozen balance', async () => {
+      const freezeDto = { amount: 1000 };
+
+      const mockCredit = {
+        agentId: 'agent-1',
+        balance: 500,
+        frozenBalance: 100,
+      };
+
+      mockPrismaService.credit.findUnique.mockResolvedValue(mockCredit);
+
+      await expect(service.unfreeze('agent-1', freezeDto)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw NotFoundException for non-existing account', async () => {
+      const freezeDto = { amount: 100 };
+
+      mockPrismaService.credit.findUnique.mockResolvedValue(null);
+
+      await expect(service.unfreeze('agent-invalid', freezeDto)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should use default description if not provided', async () => {
+      const freezeDto = { amount: 100 };
+
+      const mockCredit = {
+        agentId: 'agent-1',
+        balance: 500,
+        frozenBalance: 200,
+      };
+
+      mockPrismaService.credit.findUnique.mockResolvedValue(mockCredit);
+      mockPrismaService.creditTransaction.create.mockResolvedValue({ id: 'tx-1' });
+
+      await service.unfreeze('agent-1', freezeDto);
+
+      expect(prisma.creditTransaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          description: 'Unfreeze credits',
+        }),
+      });
+    });
+
+    it('should create unfreeze type transaction', async () => {
+      const freezeDto = { amount: 100 };
+
+      const mockCredit = {
+        agentId: 'agent-1',
+        balance: 500,
+        frozenBalance: 200,
+      };
+
+      mockPrismaService.credit.findUnique.mockResolvedValue(mockCredit);
+      mockPrismaService.creditTransaction.create.mockResolvedValue({ id: 'tx-1' });
+
+      await service.unfreeze('agent-1', freezeDto);
+
+      expect(prisma.creditTransaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          type: 'unfreeze',
+        }),
+      });
+    });
+
+    it('should update frozenBalance correctly', async () => {
+      const freezeDto = { amount: 50 };
+
+      const mockCredit = {
+        agentId: 'agent-1',
+        balance: 500,
+        frozenBalance: 150,
+      };
+
+      mockPrismaService.credit.findUnique.mockResolvedValue(mockCredit);
+      mockPrismaService.creditTransaction.create.mockResolvedValue({ id: 'tx-1' });
+
+      await service.unfreeze('agent-1', freezeDto);
+
+      expect(prisma.credit.update).toHaveBeenCalledWith({
+        where: { agentId: 'agent-1' },
+        data: {
+          frozenBalance: 100,
+        },
+      });
+    });
+
+    it('should unfreeze exact frozen balance', async () => {
+      const freezeDto = { amount: 200 };
+
+      const mockCredit = {
+        agentId: 'agent-1',
+        balance: 500,
+        frozenBalance: 200,
+      };
+
+      mockPrismaService.credit.findUnique.mockResolvedValue(mockCredit);
+      mockPrismaService.creditTransaction.create.mockResolvedValue({ id: 'tx-1' });
+
+      const result = await service.unfreeze('agent-1', freezeDto);
+
+      expect(result.totalFrozen).toBe(0);
+      expect(result.availableBalance).toBe(500);
+    });
+  });
+
   describe('Edge cases', () => {
     it('should handle zero balance withdrawal attempt', async () => {
       const mockCredit = {
@@ -1141,6 +1417,34 @@ describe('CreditsService', () => {
       results.forEach((result) => {
         expect(result.balance).toBe(1000);
       });
+    });
+
+    it('should handle freeze with zero available balance', async () => {
+      const mockCredit = {
+        agentId: 'agent-1',
+        balance: 100,
+        frozenBalance: 100,
+      };
+
+      mockPrismaService.credit.findUnique.mockResolvedValue(mockCredit);
+
+      await expect(
+        service.freeze('agent-1', { amount: 1 }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should handle unfreeze with zero frozen balance', async () => {
+      const mockCredit = {
+        agentId: 'agent-1',
+        balance: 500,
+        frozenBalance: 0,
+      };
+
+      mockPrismaService.credit.findUnique.mockResolvedValue(mockCredit);
+
+      await expect(
+        service.unfreeze('agent-1', { amount: 1 }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

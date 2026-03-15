@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, UseGuards, Query } from '@nestjs/common';
 import { CreditsService } from './credits.service';
 import { AgentAuthGuard } from '../auth/guards/agent-auth.guard';
 import { Agent } from '../auth/decorators/agent.decorator';
-import { DepositDto, WithdrawDto, TransferDto, GetTransactionHistoryDto } from './dto/create-credit.dto';
+import { DepositDto, WithdrawDto, TransferDto, GetTransactionHistoryDto, FreezeDto } from './dto/create-credit.dto';
 
 @Controller('credits')
 @UseGuards(AgentAuthGuard)
@@ -27,6 +27,16 @@ export class CreditsController {
   @Post('transfer')
   async transfer(@Agent('id') agentId: string, @Body() transferDto: TransferDto) {
     return this.creditsService.transfer(agentId, transferDto);
+  }
+
+  @Post('freeze')
+  async freeze(@Agent('id') agentId: string, @Body() freezeDto: FreezeDto) {
+    return this.creditsService.freeze(agentId, freezeDto);
+  }
+
+  @Post('unfreeze')
+  async unfreeze(@Agent('id') agentId: string, @Body() freezeDto: FreezeDto) {
+    return this.creditsService.unfreeze(agentId, freezeDto);
   }
 
   @Get('transactions')

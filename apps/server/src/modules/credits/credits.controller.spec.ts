@@ -13,6 +13,8 @@ describe('CreditsController', () => {
     deposit: jest.fn(),
     withdraw: jest.fn(),
     transfer: jest.fn(),
+    freeze: jest.fn(),
+    unfreeze: jest.fn(),
     getTransactionHistory: jest.fn(),
   };
 
@@ -472,6 +474,110 @@ describe('CreditsController', () => {
     });
   });
 
+  describe('freeze', () => {
+    it('should freeze credits successfully', async () => {
+      const freezeDto = {
+        amount: 100,
+        description: 'Test freeze',
+      };
+
+      const mockResult = {
+        transactionId: 'tx-1',
+        frozenAmount: 100,
+        totalFrozen: 100,
+        availableBalance: 400,
+      };
+
+      mockCreditsService.freeze.mockResolvedValue(mockResult);
+
+      const result = await controller.freeze('agent-1', freezeDto);
+
+      expect(result).toEqual(mockResult);
+      expect(service.freeze).toHaveBeenCalledWith('agent-1', freezeDto);
+    });
+
+    it('should freeze without description', async () => {
+      const freezeDto = {
+        amount: 50,
+      };
+
+      const mockResult = {
+        transactionId: 'tx-2',
+        frozenAmount: 50,
+        totalFrozen: 50,
+        availableBalance: 450,
+      };
+
+      mockCreditsService.freeze.mockResolvedValue(mockResult);
+
+      const result = await controller.freeze('agent-1', freezeDto);
+
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should pass agent id from decorator', async () => {
+      const freezeDto = { amount: 100 };
+
+      mockCreditsService.freeze.mockResolvedValue({ transactionId: 'tx-1' });
+
+      await controller.freeze('test-agent', freezeDto);
+
+      expect(service.freeze).toHaveBeenCalledWith('test-agent', freezeDto);
+    });
+  });
+
+  describe('unfreeze', () => {
+    it('should unfreeze credits successfully', async () => {
+      const freezeDto = {
+        amount: 50,
+        description: 'Test unfreeze',
+      };
+
+      const mockResult = {
+        transactionId: 'tx-1',
+        unfrozenAmount: 50,
+        totalFrozen: 50,
+        availableBalance: 450,
+      };
+
+      mockCreditsService.unfreeze.mockResolvedValue(mockResult);
+
+      const result = await controller.unfreeze('agent-1', freezeDto);
+
+      expect(result).toEqual(mockResult);
+      expect(service.unfreeze).toHaveBeenCalledWith('agent-1', freezeDto);
+    });
+
+    it('should unfreeze without description', async () => {
+      const freezeDto = {
+        amount: 100,
+      };
+
+      const mockResult = {
+        transactionId: 'tx-2',
+        unfrozenAmount: 100,
+        totalFrozen: 0,
+        availableBalance: 500,
+      };
+
+      mockCreditsService.unfreeze.mockResolvedValue(mockResult);
+
+      const result = await controller.unfreeze('agent-1', freezeDto);
+
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should pass agent id from decorator', async () => {
+      const freezeDto = { amount: 100 };
+
+      mockCreditsService.unfreeze.mockResolvedValue({ transactionId: 'tx-1' });
+
+      await controller.unfreeze('test-agent', freezeDto);
+
+      expect(service.unfreeze).toHaveBeenCalledWith('test-agent', freezeDto);
+    });
+  });
+
   describe('Guard integration', () => {
     it('should have AgentAuthGuard applied', () => {
       const guards = Reflect.getMetadata('__guards__', CreditsController);
@@ -528,6 +634,26 @@ describe('CreditsController', () => {
       await expect(
         controller.getTransactionHistory('agent-1', {}),
       ).rejects.toThrow('Query failed');
+    });
+
+    it('should propagate service errors for freeze', async () => {
+      const freezeDto = { amount: 100 };
+
+      mockCreditsService.freeze.mockRejectedValue(new Error('Insufficient balance'));
+
+      await expect(controller.freeze('agent-1', freezeDto)).rejects.toThrow(
+        'Insufficient balance',
+      );
+    });
+
+    it('should propagate service errors for unfreeze', async () => {
+      const freezeDto = { amount: 100 };
+
+      mockCreditsService.unfreeze.mockRejectedValue(new Error('Insufficient frozen balance'));
+
+      await expect(controller.unfreeze('agent-1', freezeDto)).rejects.toThrow(
+        'Insufficient frozen balance',
+      );
     });
   });
 });

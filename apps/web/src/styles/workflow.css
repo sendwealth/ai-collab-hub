@@ -1,0 +1,57 @@
+/* Workflow Editor Styles */
+.react-flow__node {
+  cursor: pointer;
+}
+
+.react-flow__node.selected {
+  box-shadow: 0 0 0 2px #3B82F6;
+}
+
+.react-flow__edge-path {
+  stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #3B82F6;
+  stroke-width: 3;
+}
+
+.react-flow__handle {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.react-flow__handle-top {
+  top: -5px;
+}
+
+.react-flow__handle-bottom {
+  bottom: -5px;
+}
+
+.react-flow__controls {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.react-flow__minimap {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Custom scrollbar */
+.react-flow__panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.react-flow__panel::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.react-flow__panel::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.react-flow__panel::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}

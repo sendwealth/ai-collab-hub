@@ -6,6 +6,8 @@ export enum TransactionType {
   WITHDRAW = 'withdraw',
   DEPOSIT = 'deposit',
   TRANSFER = 'transfer',
+  FREEZE = 'freeze',
+  UNFREEZE = 'unfreeze',
 }
 
 export class CreateCreditDto {
@@ -37,6 +39,16 @@ export class TransferDto {
   @IsString()
   toAgentId!: string;
 
+  @IsInt()
+  @Min(1)
+  amount!: number;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+}
+
+export class FreezeDto {
   @IsInt()
   @Min(1)
   amount!: number;

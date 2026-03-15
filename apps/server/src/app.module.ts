@@ -15,6 +15,8 @@ import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { BatchModule } from './modules/batch/batch.module';
 import { WorkflowsModule } from './modules/workflows/workflows.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { SearchModule } from './modules/search/search.module';
+import { TemplatesModule } from './modules/templates/templates.module';
 
 @Module({
   imports: [
@@ -35,6 +37,8 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     BatchModule,
     WorkflowsModule,
     AnalyticsModule,
+    SearchModule,
+    TemplatesModule,
   ],
   controllers: [AppController],
   providers: [PerformanceInterceptor],
