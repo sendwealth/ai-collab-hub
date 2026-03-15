@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { CacheService } from '../cache';
 import { CreateTaskDto, BidTaskDto, SubmitTaskDto, CompleteTaskDto } from './dto';
 
 @Injectable()
 export class TasksService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cache: CacheService,
+  ) {}
 
   /**
    * 创建任务
@@ -23,6 +27,9 @@ export class TasksService {
       },
     });
 
+    // 清除任务列表缓存
+    await this.cache.invalidate('tasks:*');
+
     return {
       taskId: task.id,
       task: {
@@ -34,7 +41,7 @@ export class TasksService {
   }
 
   /**
-   * 浏览任务
+   * 浏览任务 - 带缓存
    */
   async getTasks(filters: {
     status?: string;
@@ -43,73 +50,128 @@ export class TasksService {
     limit?: number;
     offset?: number;
   }) {
-    const where: any = {};
+    const cacheKey = `tasks:list:${JSON.stringify(filters)}`;
+    
+    return this.cache.getOrSet(
+      cacheKey,
+      async () => {
+        const where: any = {};
 
-    if (filters.status) {
-      where.status = filters.status;
-    }
-    if (filters.category) {
-      where.category = filters.category;
-    }
-    if (filters.type) {
-      where.type = filters.type;
-    }
+        if (filters.status) {
+          where.status = filters.status;
+        }
+        if (filters.category) {
+          where.category = filters.category;
+        }
+        if (filters.type) {
+          where.type = filters.type;
+        }
 
-    const limit = filters.limit || 20;
-    const offset = filters.offset || 0;
+        const limit = filters.limit || 20;
+        const offset = filters.offset || 0;
 
-    const [tasks, total] = await Promise.all([
-      this.prisma.task.findMany({
-        where,
-        include: {
-          creator: {
-            select: {
+        const [tasks, total] = await Promise.all([
+          this.prisma.task.findMany({
+            where,
+            select: { // 使用select优化查询
               id: true,
-              name: true,
-              trustScore: true,
+              title: true,
+              description: true,
+              type: true,
+              category: true,
+              requirements: true,
+              reward: true,
+              status: true,
+              createdAt: true,
+              deadline: true,
+              creator: {
+                select: {
+                  id: true,
+                  name: true,
+                  trustScore: true,
+                },
+              },
+              assignee: {
+                select: {
+                  id: true,
+                  name: true,
+                  trustScore: true,
+                },
+              },
+              _count: {
+                select: { bids: true },
+              },
             },
-          },
-          assignee: {
-            select: {
-              id: true,
-              name: true,
-              trustScore: true,
+            orderBy: {
+              createdAt: 'desc',
             },
-          },
-          _count: {
-            select: { bids: true },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        take: limit,
-        skip: offset,
-      }),
-      this.prisma.task.count({ where }),
-    ]);
+            take: limit,
+            skip: offset,
+          }),
+          this.prisma.task.count({ where }),
+        ]);
 
-    return {
-      total,
-      tasks: tasks.map((task) => ({
-        ...task,
-        requirements: task.requirements ? JSON.parse(task.requirements) : null,
-        reward: task.reward ? JSON.parse(task.reward) : null,
-        bidCount: task._count.bids,
-      })),
-    };
+        return {
+          total,
+          tasks: tasks.map((task) => ({
+            ...task,
+            requirements: task.requirements ? JSON.parse(task.requirements) : null,
+            reward: task.reward ? JSON.parse(task.reward) : null,
+            bidCount: task._count.bids,
+          })),
+        };
+      },
+      180, // 3分钟缓存
+    );
   }
 
   /**
-   * 获取任务详情
+   * 获取任务详情 - 带缓存
    */
   async getTask(taskId: string) {
-    const task = await this.prisma.task.findUnique({
-      where: { id: taskId },
-      include: {
-        bids: {
-          include: {
-            agent: {
+    return this.cache.getOrSet(
+      `task:detail:${taskId}`,
+      async () => {
+        const task = await this.prisma.task.findUnique({
+          where: { id: taskId },
+          select: { // 使用select优化查询
+            id: true,
+            title: true,
+            description: true,
+            type: true,
+            category: true,
+            requirements: true,
+            reward: true,
+            result: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+            deadline: true,
+            bids: {
+              select: {
+                id: true,
+                proposal: true,
+                estimatedTime: true,
+                estimatedCost: true,
+                status: true,
+                createdAt: true,
+                agent: {
+                  select: {
+                    id: true,
+                    name: true,
+                    trustScore: true,
+                  },
+                },
+              },
+            },
+            creator: {
+              select: {
+                id: true,
+                name: true,
+                trustScore: true,
+              },
+            },
+            assignee: {
               select: {
                 id: true,
                 name: true,
@@ -117,37 +179,24 @@ export class TasksService {
               },
             },
           },
-        },
-        creator: {
-          select: {
-            id: true,
-            name: true,
-            trustScore: true,
-          },
-        },
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            trustScore: true,
-          },
-        },
+        });
+
+        if (!task) {
+          throw new NotFoundException('Task not found');
+        }
+
+        return {
+          ...task,
+          requirements: task.requirements ? JSON.parse(task.requirements) : null,
+          reward: task.reward ? JSON.parse(task.reward) : null,
+          result: task.result ? JSON.parse(task.result) : null,
+          bids: task.bids.map((bid) => ({
+            ...bid,
+          })),
+        };
       },
-    });
-
-    if (!task) {
-      throw new NotFoundException('Task not found');
-    }
-
-    return {
-      ...task,
-      requirements: task.requirements ? JSON.parse(task.requirements) : null,
-      reward: task.reward ? JSON.parse(task.reward) : null,
-      result: task.result ? JSON.parse(task.result) : null,
-      bids: task.bids.map((bid) => ({
-        ...bid,
-      })),
-    };
+      180, // 3分钟缓存
+    );
   }
 
   /**
@@ -188,6 +237,9 @@ export class TasksService {
         estimatedCost: bidTaskDto.estimatedCost,
       },
     });
+
+    // 清除任务详情缓存
+    await this.cache.del(`task:detail:${taskId}`);
 
     return {
       bidId: bid.id,
@@ -244,6 +296,10 @@ export class TasksService {
       data: { status: 'rejected' },
     });
 
+    // 清除缓存
+    await this.cache.del(`task:detail:${taskId}`);
+    await this.cache.invalidate('tasks:*');
+
     return {
       task: {
         ...updatedTask,
@@ -277,6 +333,10 @@ export class TasksService {
         result: submitTaskDto.result ? JSON.stringify(submitTaskDto.result) : null,
       },
     });
+
+    // 清除缓存
+    await this.cache.del(`task:detail:${taskId}`);
+    await this.cache.invalidate('tasks:*');
 
     return {
       task: {
@@ -322,6 +382,11 @@ export class TasksService {
     if (task.assigneeId) {
       await this.updateAgentTrustScore(task.assigneeId);
     }
+
+    // 清除缓存
+    await this.cache.del(`task:detail:${taskId}`);
+    await this.cache.invalidate('tasks:*');
+    await this.cache.invalidate('agents:*');
 
     return {
       task: {

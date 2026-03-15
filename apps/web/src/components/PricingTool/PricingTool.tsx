@@ -17,22 +17,19 @@ import { Badge } from '../ui/badge';
 import { Loader2, DollarSign, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 interface PriceRange {
-  min: number;
-  max: number;
-  recommended: number;
-  currency: string;
-  breakdown: {
-    basePrice: number;
-    complexityMultiplier: number;
-    marketAdjustment: number;
-    skillPremium: number;
-    urgencyMultiplier: number;
-  };
+  minPrice: number;
+  maxPrice: number;
+  recommendedPrice: number;
+  confidence: number;
+  marketTrend: 'rising' | 'stable' | 'falling';
+  avgMarketPrice: number;
+  supplyLevel: string;
+  demandLevel: string;
   factors: {
-    category: string;
-    estimatedHours: number;
-    complexity: 'low' | 'medium' | 'high';
-    marketDemand: 'low' | 'medium' | 'high';
+    historicalAvg: number;
+    difficultyMultiplier: number;
+    supplyDemandRatio: number;
+    urgencyBonus: number;
   };
 }
 
@@ -47,18 +44,17 @@ interface MarketPrice {
 }
 
 export default function PricingTool() {
+  const [taskId, setTaskId] = useState('');
   const [category, setCategory] = useState('development');
-  const [description, setDescription] = useState('');
-  const [skills, setSkills] = useState('');
-  const [deadline, setDeadline] = useState('');
+  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [priceRange, setPriceRange] = useState<PriceRange | null>(null);
   const [marketPrices, setMarketPrices] = useState<MarketPrice[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleGetPricing = async () => {
-    if (!description.trim()) {
-      setError('请输入任务描述');
+    if (!taskId.trim()) {
+      setError('请输入任务ID');
       return;
     }
 
@@ -66,18 +62,15 @@ export default function PricingTool() {
     setError('');
 
     try {
-      const response = await fetch('/api/v1/tasks/pricing', {
+      const response = await fetch('http://localhost:3001/api/v1/recommendations/pricing', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          taskId,
           category,
-          description,
-          requirements: {
-            skills: skills ? skills.split(',').map((s) => s.trim()) : undefined,
-          },
-          deadline: deadline || undefined,
+          difficulty,
         }),
       });
 
@@ -95,17 +88,22 @@ export default function PricingTool() {
   };
 
   const handleGetMarketPrices = async () => {
+    if (!category.trim()) {
+      setError('请选择任务类别');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
-      const response = await fetch('/api/v1/tasks/pricing/market');
+      const response = await fetch(`http://localhost:3001/api/v1/recommendations/pricing/history/${category}`);
       if (!response.ok) {
         throw new Error('获取市场价格失败');
       }
 
       const data = await response.json();
-      setMarketPrices(data);
+      setMarketPrices([data]); // Wrap in array for display
     } catch (err) {
       setError(err instanceof Error ? err.message : '获取市场价格失败');
     } finally {
@@ -159,7 +157,17 @@ export default function PricingTool() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="taskId">任务ID</Label>
+              <Input
+                id="taskId"
+                placeholder="输入任务ID"
+                value={taskId}
+                onChange={(e) => setTaskId(e.target.value)}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="category">任务类别</Label>
               <Select value={category} onValueChange={setCategory}>
@@ -178,35 +186,18 @@ export default function PricingTool() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="deadline">截止日期 (可选)</Label>
-              <Input
-                id="deadline"
-                type="date"
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-              />
+              <Label htmlFor="difficulty">难度等级</Label>
+              <Select value={difficulty} onValueChange={(v: any) => setDifficulty(v)}>
+                <SelectTrigger id="difficulty">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="easy">简单</SelectItem>
+                  <SelectItem value="medium">中等</SelectItem>
+                  <SelectItem value="hard">困难</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">任务描述</Label>
-            <Textarea
-              id="description"
-              placeholder="详细描述任务需求..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={4}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="skills">技能要求 (用逗号分隔)</Label>
-            <Input
-              id="skills"
-              placeholder="例如: React, Node.js, TypeScript"
-              value={skills}
-              onChange={(e) => setSkills(e.target.value)}
-            />
           </div>
 
           <div className="flex gap-2">
@@ -235,66 +226,68 @@ export default function PricingTool() {
               <div>
                 <p className="text-sm text-gray-600 mb-1">推荐价格</p>
                 <p className="text-4xl font-bold text-blue-600">
-                  ¥{priceRange.recommended}
+                  {priceRange.recommendedPrice} credits
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-sm text-gray-600 mb-1">价格范围</p>
                 <p className="text-lg font-semibold text-gray-800">
-                  ¥{priceRange.min} - ¥{priceRange.max}
+                  {priceRange.minPrice} - {priceRange.maxPrice}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">
+                  置信度: {(priceRange.confidence * 100).toFixed(0)}%
                 </p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <h4 className="font-semibold mb-2">定价因素</h4>
+                <h4 className="font-semibold mb-2">市场情况</h4>
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">任务类别:</span>
-                    <span className="font-medium">{priceRange.factors.category}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">复杂度:</span>
-                    <Badge variant={getComplexityBadgeVariant(priceRange.factors.complexity)}>
-                      {priceRange.factors.complexity}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">市场需求:</span>
-                    <Badge variant={getDemandBadgeVariant(priceRange.factors.marketDemand)}>
-                      {priceRange.factors.marketDemand}
-                    </Badge>
+                    <span className="text-gray-600">市场趋势:</span>
+                    <div className="flex items-center gap-2">
+                      {getTrendIcon(priceRange.marketTrend)}
+                      <span className="font-medium capitalize">{priceRange.marketTrend}</span>
+                    </div>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">预计工时:</span>
-                    <span className="font-medium">{priceRange.factors.estimatedHours} 小时</span>
+                    <span className="text-gray-600">平均价格:</span>
+                    <span className="font-medium">{priceRange.avgMarketPrice} credits</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">供给水平:</span>
+                    <Badge variant={getDemandBadgeVariant(priceRange.supplyLevel)}>
+                      {priceRange.supplyLevel}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">需求水平:</span>
+                    <Badge variant={getDemandBadgeVariant(priceRange.demandLevel)}>
+                      {priceRange.demandLevel}
+                    </Badge>
                   </div>
                 </div>
               </div>
 
               <div>
-                <h4 className="font-semibold mb-2">价格构成</h4>
+                <h4 className="font-semibold mb-2">定价因素</h4>
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">基础价格:</span>
-                    <span className="font-medium">¥{priceRange.breakdown.basePrice}</span>
+                    <span className="text-gray-600">历史均价:</span>
+                    <span className="font-medium">{priceRange.factors.historicalAvg}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">复杂度系数:</span>
-                    <span className="font-medium">×{priceRange.breakdown.complexityMultiplier.toFixed(2)}</span>
+                    <span className="text-gray-600">难度系数:</span>
+                    <span className="font-medium">×{priceRange.factors.difficultyMultiplier.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">市场调整:</span>
-                    <span className="font-medium">×{priceRange.breakdown.marketAdjustment.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">技能溢价:</span>
-                    <span className="font-medium">×{priceRange.breakdown.skillPremium.toFixed(2)}</span>
+                    <span className="text-gray-600">供需比:</span>
+                    <span className="font-medium">×{priceRange.factors.supplyDemandRatio.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">紧急程度:</span>
-                    <span className="font-medium">×{priceRange.breakdown.urgencyMultiplier.toFixed(2)}</span>
+                    <span className="font-medium">×{priceRange.factors.urgencyBonus.toFixed(2)}</span>
                   </div>
                 </div>
               </div>

@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -29,6 +29,10 @@ model Agent {
   status        String        @default("idle") // idle, busy, offline
   trustScore    Int           @default(0) @map("trust_score")
 
+  // P0: 匹配系统相关字段
+  hourlyRate    Int?          @map("hourly_rate") // 时薪（积分）
+  timezone      String?       // 时区偏好
+
   lastSeen      DateTime?     @map("last_seen")
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
@@ -40,6 +44,13 @@ model Agent {
   files         File[]
   ownedTeams    Team[]        @relation("TeamOwner")
   teamMemberships TeamMember[] @relation("TeamMember")
+  createdTemplates TaskTemplate[] @relation("TemplateAuthor")
+  savedSearches SavedSearch[]
+
+  // P0 Core Features Relations
+  skills        AgentSkill[]
+  ratings       Rating[]
+  ratingSummary AgentRatingSummary?
 
   @@map("agents")
 }
@@ -63,6 +74,15 @@ model Task {
 
   status      String      @default("open") // open, assigned, reviewing, completed, cancelled
 
+  // P0: Task分解系统字段
+  level       Int         @default(0)  // 任务层级：0=主任务，1=子任务，2=孙任务
+  order       Int         @default(0)  // 同级排序
+  dependencies String[]   // 依赖的任务ID列表
+
+  // P0: 匹配系统相关字段
+  budget          Int?        @default(0) // 预算（积分）
+  preferredTimezone String?   // 偏好时区
+
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
@@ -79,6 +99,19 @@ model Task {
   // 子任务关系
   parentRelations  TaskRelation[] @relation("ChildTasks")
   childRelations   TaskRelation[] @relation("ParentTasks")
+
+  // P0: 里程碑和质量保证
+  milestones       Milestone[]
+  qualityChecklist QualityChecklist[]
+  qualityReviews   QualityReview[]
+  automatedTests   AutomatedTest[]
+  
+  // P1: 模板使用关系
+  templateUsages   TaskTemplateUsage[]
+
+  // P0 Core Features Relations
+  skills           TaskSkill[]
+  ratings          Rating[]
 
   @@map("tasks")
 }
@@ -230,6 +263,136 @@ model Notification {
 }
 
 // ============================================
+// P0: Task Decomposition - Milestone
+// ============================================
+
+model Milestone {
+  id          String          @id @default(uuid())
+  taskId      String          @map("task_id")
+  name        String
+  description String?
+  dueDate     DateTime        @map("due_date")
+  status      MilestoneStatus @default(PENDING)
+  order       Int             @default(0)
+
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  task        Task            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([status])
+  @@map("milestones")
+}
+
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+}
+
+// ============================================
+// P0: Quality Assurance - Checklist
+// ============================================
+
+model QualityChecklist {
+  id          String   @id @default(uuid())
+  taskId      String   @map("task_id")
+  name        String
+  description String?
+  required    Boolean  @default(true)
+  completed   Boolean  @default(false)
+  completedAt DateTime? @map("completed_at")
+  completedBy String?  @map("completed_by")
+  order       Int      @default(0)
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([completed])
+  @@map("quality_checklists")
+}
+
+// ============================================
+// P0: Quality Assurance - Review
+// ============================================
+
+model QualityReview {
+  id          String      @id @default(uuid())
+  taskId      String      @map("task_id")
+  reviewerId  String      @map("reviewer_id")
+  status      ReviewStatus @default(PENDING)
+  checklist   String      // JSON: 检查清单结果
+  feedback    String?
+  rating      Int?        // 1-5
+
+  createdAt   DateTime    @default(now()) @map("created_at")
+  reviewedAt  DateTime?   @map("reviewed_at")
+
+  // Relations
+  task        Task        @relation(fields: [taskId], references: [id])
+
+  @@index([taskId])
+  @@index([reviewerId])
+  @@index([status])
+  @@map("quality_reviews")
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  NEEDS_REVISION
+}
+
+// ============================================
+// P0: Quality Assurance - Automated Test
+// ============================================
+
+model AutomatedTest {
+  id          String      @id @default(uuid())
+  taskId      String      @map("task_id")
+  type        TestType
+  config      String      // JSON: 测试配置
+  result      String?     // JSON: 测试结果
+  status      TestStatus  @default(PENDING)
+  executedAt  DateTime?   @map("executed_at")
+
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  task        Task        @relation(fields: [taskId], references: [id])
+
+  @@index([taskId])
+  @@index([type])
+  @@index([status])
+  @@map("automated_tests")
+}
+
+enum TestType {
+  CODE_QUALITY
+  UNIT_TEST
+  INTEGRATION_TEST
+  PERFORMANCE
+  SECURITY
+}
+
+enum TestStatus {
+  PENDING
+  RUNNING
+  PASSED
+  FAILED
+  ERROR
+}
+
+// ============================================
 // Credit
 // ============================================
 
@@ -273,4 +436,557 @@ model CreditTransaction {
   @@index([type])
   @@index([createdAt])
   @@map("credit_transactions")
+}
+
+// ============================================
+// Phase 3: AI Recommendation System Models
+// ============================================
+
+// Agent Capabilities Vector
+model AgentCapability {
+  id            String   @id @default(uuid())
+  agentId       String   @unique @map("agent_id")
+  
+  // Skill vectors (normalized scores 0-100)
+  coding        Int      @default(0)
+  writing       Int      @default(0)
+  analysis      Int      @default(0)
+  design        Int      @default(0)
+  testing       Int      @default(0)
+  devops        Int      @default(0)
+  dataScience   Int      @default(0) @map("data_science")
+  machineLearning Int    @default(0) @map("machine_learning")
+  projectMgmt   Int      @default(0) @map("project_mgmt")
+  
+  // Specialized skills (JSON array)
+  specialized   String?  // JSON string array
+  
+  // Last updated
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  
+  @@index([agentId])
+  @@map("agent_capabilities")
+}
+
+// Agent Performance Metrics
+model AgentPerformance {
+  id                String   @id @default(uuid())
+  agentId           String   @map("agent_id")
+  
+  // Performance metrics
+  tasksCompleted    Int      @default(0) @map("tasks_completed")
+  tasksFailed       Int      @default(0) @map("tasks_failed")
+  totalBids         Int      @default(0) @map("total_bids")
+  acceptedBids      Int      @default(0) @map("accepted_bids")
+  
+  // Quality metrics
+  avgRating         Float    @default(0) @map("avg_rating")
+  onTimeDelivery    Float    @default(0) @map("on_time_delivery") // percentage
+  
+  // Speed metrics
+  avgResponseTime   Int      @default(0) @map("avg_response_time") // minutes
+  avgCompletionTime Int      @default(0) @map("avg_completion_time") // hours
+  
+  // Earnings
+  totalEarned       Int      @default(0) @map("total_earned")
+  avgTaskValue      Float    @default(0) @map("avg_task_value")
+  
+  // Period
+  periodStart       DateTime @map("period_start")
+  periodEnd         DateTime @map("period_end")
+  
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  
+  @@index([agentId])
+  @@index([periodStart])
+  @@map("agent_performance")
+}
+
+// Recommendation Log
+model RecommendationLog {
+  id                String   @id @default(uuid())
+  type              String   // "agent" or "task"
+  
+  // Input
+  inputId           String   @map("input_id") // taskId or agentId
+  inputFeatures     String   // JSON string
+  
+  // Output
+  recommendations   String   // JSON array of recommended IDs with scores
+  
+  // Context
+  context           String?  // JSON string (user preferences, filters, etc.)
+  
+  // Performance tracking
+  clicked           Boolean  @default(false)
+  accepted          Boolean  @default(false)
+  
+  createdAt         DateTime @default(now()) @map("created_at")
+  
+  @@index([type])
+  @@index([inputId])
+  @@index([createdAt])
+  @@map("recommendation_logs")
+}
+
+// Price History
+model PriceHistory {
+  id              String   @id @default(uuid())
+  category        String
+  
+  // Task details
+  taskId          String?  @map("task_id")
+  taskType        String?  @map("task_type")
+  difficulty      String?  // easy, medium, hard
+  
+  // Price data
+  suggestedPrice  Int      @map("suggested_price")
+  finalPrice      Int      @map("final_price")
+  
+  // Market data
+  avgMarketPrice  Int      @map("avg_market_price")
+  supplyLevel     String   @map("supply_level") // low, medium, high
+  demandLevel     String   @map("demand_level") // low, medium, high
+  
+  createdAt       DateTime @default(now()) @map("created_at")
+  
+  @@index([category])
+  @@index([taskId])
+  @@index([createdAt])
+  @@map("price_history")
+}
+
+// Market Trends
+model MarketTrend {
+  id              String   @id @default(uuid())
+  category        String
+
+  // Statistics
+  totalTasks      Int      @default(0) @map("total_tasks")
+  avgPrice        Int      @default(0) @map("avg_price")
+  avgCompletionTime Int    @default(0) @map("avg_completion_time")
+
+  // Supply/Demand
+  availableAgents Int      @default(0) @map("available_agents")
+  openTasks       Int      @default(0) @map("open_tasks")
+  ratio           Float    @default(0) // supply/demand ratio
+
+  // Period
+  periodStart     DateTime @map("period_start")
+  periodEnd       DateTime @map("period_end")
+
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@index([periodStart])
+  @@map("market_trends")
+}
+
+// ============================================
+// Phase 4: Workflow Engine Models
+// ============================================
+
+// Workflow Template
+model WorkflowTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  category    String   // data-processing, content-creation, code-review, analysis
+  version     String   @default("1.0.0")
+
+  // Workflow definition (JSON)
+  definition  String   // JSON string with nodes and edges
+
+  // Metadata
+  tags        String?  // JSON string array
+  author      String?
+  isActive    Boolean  @default(true)
+
+  // Statistics
+  usageCount  Int      @default(0) @map("usage_count")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  instances   WorkflowInstance[]
+
+  @@index([category])
+  @@index([isActive])
+  @@map("workflow_templates")
+}
+
+// Workflow Instance
+model WorkflowInstance {
+  id           String   @id @default(uuid())
+
+  // Relations
+  templateId   String   @map("template_id")
+  template     WorkflowTemplate @relation(fields: [templateId], references: [id])
+
+  taskId       String?  @map("task_id")
+
+  // Status
+  status       String   @default("pending") // pending, running, paused, completed, failed, cancelled
+
+  // Execution context
+  context      String   // JSON string with workflow variables
+  currentNode  String?  @map("current_node") // Current executing node ID
+
+  // Timing
+  startedAt    DateTime? @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+
+  // Error tracking
+  errorMessage String?  @map("error_message")
+  retryCount   Int      @default(0) @map("retry_count")
+
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  nodeExecutions WorkflowNodeExecution[]
+
+  @@index([templateId])
+  @@index([taskId])
+  @@index([status])
+  @@map("workflow_instances")
+}
+
+// Workflow Node Execution
+model WorkflowNodeExecution {
+  id         String   @id @default(uuid())
+
+  // Relations
+  instanceId String   @map("instance_id")
+  instance   WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  // Node details
+  nodeId     String   @map("node_id") // Node ID from workflow definition
+  nodeType   String   @map("node_type") // start, end, task, condition, parallel, delay, loop
+
+  // Execution status
+  status     String   @default("pending") // pending, running, completed, failed, skipped
+
+  // Input/Output
+  input      String?  // JSON string
+  output     String?  // JSON string
+
+  // Error handling
+  error      String?
+  retryCount Int      @default(0) @map("retry_count")
+
+  // Timing
+  startedAt  DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  duration   Int?     // milliseconds
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([instanceId])
+  @@index([nodeId])
+  @@index([status])
+  @@map("workflow_node_executions")
+}
+
+// Analytics Dashboard Data
+model DashboardMetric {
+  id          String   @id @default(uuid())
+  type        String   // active_agents, tasks_completed, revenue, user_growth
+
+  // Metric value
+  value       Float
+  change      Float?   // Percentage change from previous period
+  trend       String?  // up, down, stable
+
+  // Period
+  period      String   // hour, day, week, month
+  timestamp   DateTime @map("timestamp")
+
+  // Metadata
+  metadata    String?  // JSON string for additional data
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([type])
+  @@index([period])
+  @@index([timestamp])
+  @@map("dashboard_metrics")
+}
+
+// Audit Log (for security and compliance)
+model AuditLog {
+  id          String   @id @default(uuid())
+
+  // Who
+  agentId     String?  @map("agent_id")
+  userId      String?  @map("user_id") // For future human users
+
+  // What
+  action      String   // create, update, delete, execute, etc.
+  resource    String   // agent, task, workflow, etc.
+  resourceId  String?  @map("resource_id")
+
+  // Details
+  changes     String?  // JSON string with before/after values
+  metadata    String?  // JSON string for additional context
+
+  // Context
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+
+  // Result
+  success     Boolean  @default(true)
+  errorMessage String? @map("error_message")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([agentId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================
+// P0 Core Features: Skill Tags, Ratings, Matching
+// ============================================
+
+// Skill Tag - 能力标签
+model SkillTag {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  category    String   // 技术类别：frontend/backend/ai/data等
+  level       Int      // 难度等级：1-5
+  description String?
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  agents      AgentSkill[]
+  tasks       TaskSkill[]
+
+  @@index([category])
+  @@index([level])
+  @@map("skill_tags")
+}
+
+// Agent Skill - Agent技能关联
+model AgentSkill {
+  agentId    String
+  skillId    String
+  level      Int      // 掌握程度：1-5
+  verified   Boolean  @default(false)
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  agent      Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  skill      SkillTag @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([agentId, skillId])
+  @@index([agentId])
+  @@index([skillId])
+  @@map("agent_skills")
+}
+
+// Task Skill - 任务技能要求
+model TaskSkill {
+  taskId     String
+  skillId    String
+  required   Boolean  @default(true)
+  minLevel   Int      @default(1)
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  skill      SkillTag @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, skillId])
+  @@index([taskId])
+  @@index([skillId])
+  @@map("task_skills")
+}
+
+// Rating - 评分
+model Rating {
+  id              String   @id @default(uuid())
+  fromUserId      String   @map("from_user_id")
+  toAgentId       String   @map("to_agent_id")
+  taskId          String?  @map("task_id")
+
+  // 多维度评分
+  quality         Int      // 质量：1-5
+  speed           Int      // 速度：1-5
+  communication   Int      // 沟通：1-5
+  professionalism Int      // 专业度：1-5
+  comment         String?
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  toAgent         Agent    @relation(fields: [toAgentId], references: [id], onDelete: Cascade)
+  task            Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  // 每个用户对每个Agent每个任务只能评分一次
+  @@unique([fromUserId, toAgentId, taskId])
+  @@index([toAgentId])
+  @@index([taskId])
+  @@index([fromUserId])
+  @@map("ratings")
+}
+
+// Agent Rating Summary - Agent评分汇总
+model AgentRatingSummary {
+  agentId           String   @id @map("agent_id")
+
+  // 平均分
+  avgQuality        Float    @default(0) @map("avg_quality")
+  avgSpeed          Float    @default(0) @map("avg_speed")
+  avgCommunication  Float    @default(0) @map("avg_communication")
+  avgProfessionalism Float   @default(0) @map("avg_professionalism")
+  overallRating     Float    @default(0) @map("overall_rating")
+
+  // 统计
+  totalRatings      Int      @default(0) @map("total_ratings")
+  rating5Count      Int      @default(0) @map("rating_5_count")
+  rating4Count      Int      @default(0) @map("rating_4_count")
+  rating3Count      Int      @default(0) @map("rating_3_count")
+  rating2Count      Int      @default(0) @map("rating_2_count")
+  rating1Count      Int      @default(0) @map("rating_1_count")
+
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  agent             Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@map("agent_rating_summaries")
+}
+
+// User - 用户模型 (用于评分来源)
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  name        String?
+  avatar      String?
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+// ============================================
+// Phase 5: Advanced Search & Task Templates
+// ============================================
+
+// Task Template
+model TaskTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  category    String
+
+  // Template definition (JSON)
+  template    String   // JSON string with title, description, budget, deadline, skills, checklist
+  
+  // Variables definition (JSON)
+  variables   String   // JSON array of variable definitions
+
+  // Statistics
+  usageCount  Int      @default(0) @map("usage_count")
+  rating      Float    @default(0)
+
+  // Visibility
+  public      Boolean  @default(false)
+
+  // Relations
+  createdBy   String   @map("created_by")
+  author      Agent    @relation("TemplateAuthor", fields: [createdBy], references: [id])
+  usages      TaskTemplateUsage[]
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@index([public])
+  @@index([createdBy])
+  @@map("task_templates")
+}
+
+// Task Template Usage
+model TaskTemplateUsage {
+  id          String   @id @default(uuid())
+  
+  // Relations
+  templateId  String   @map("template_id")
+  template    TaskTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  taskId      String   @map("task_id")
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  // Variables used (JSON)
+  variables   String   // JSON string with actual variable values
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([templateId])
+  @@index([taskId])
+  @@map("task_template_usages")
+}
+
+// Search Index (for full-text search optimization)
+model SearchIndex {
+  id          String   @id @default(uuid())
+  
+  // Resource info
+  resourceType String  @map("resource_type") // task, agent, template
+  resourceId   String  @map("resource_id")
+  
+  // Search content
+  title       String?
+  content     String   // Concatenated searchable content
+  
+  // Metadata (JSON)
+  metadata    String?  // JSON string with category, tags, etc.
+  
+  // Vector embedding (for semantic search)
+  embedding   String?  // JSON array of numbers
+  
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([resourceType, resourceId])
+  @@index([resourceType])
+  @@index([resourceId])
+  @@map("search_indices")
+}
+
+// Saved Search
+model SavedSearch {
+  id          String   @id @default(uuid())
+  
+  // Owner
+  agentId     String   @map("agent_id")
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  // Search criteria
+  name        String
+  query       String?  // Search keywords
+  filters     String   // JSON string with filter criteria
+  
+  // Usage tracking
+  useCount    Int      @default(0) @map("use_count")
+  
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([agentId])
+  @@map("saved_searches")
 }
