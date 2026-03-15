@@ -1,4 +1,4 @@
-import { WorkflowDefinitionDto, WorkflowNodeDto, WorkflowEdgeDto } from './dto/workflow.dto';
+import { WorkflowDefinitionDto, WorkflowNodeDto, WorkflowEdgeDto } from '../dto/workflow.dto';
 
 /**
  * Mock workflow data for testing

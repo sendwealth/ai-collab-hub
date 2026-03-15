@@ -242,12 +242,10 @@ export class TemplatesService {
       description: taskData.description,
       category: template.category,
       requirements: {
-        budget: taskData.budget,
         skills: taskData.requiredSkills,
-        checklist: taskData.checklist,
       },
       deadline: taskData.deadline
-        ? new Date(Date.now() + taskData.deadline * 24 * 60 * 60 * 1000)
+        ? new Date(Date.now() + taskData.deadline * 24 * 60 * 60 * 1000).toISOString()
         : undefined,
     });
 

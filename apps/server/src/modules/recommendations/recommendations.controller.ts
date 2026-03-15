@@ -15,7 +15,7 @@ import {
   RecommendationFeedbackDto,
 } from './dto/recommendations.dto';
 
-@Controller('api/v1/recommendations')
+@Controller('recommendations')
 export class RecommendationsController {
   constructor(private readonly recommendationsService: RecommendationsService) {}
 

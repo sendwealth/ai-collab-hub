@@ -1,7 +1,6 @@
 import {
   Injectable,
   NotFoundException,
-  ConflictException,
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
@@ -87,7 +86,7 @@ export class QualityAssuranceService {
   /**
    * 获取检查清单
    */
-  async getChecklist(taskId: string) {
+  async getChecklist(_taskId: string) {
     // 注意：Prisma schema中需要添加qualityChecklist表
     // 这里先返回空数组
     return [];
@@ -170,7 +169,7 @@ export class QualityAssuranceService {
   /**
    * 获取审核历史
    */
-  async getReviews(taskId: string) {
+  async getReviews(_taskId: string) {
     // 注意：Prisma schema中需要添加qualityReview表
     // 这里先返回空数组
     return [];
@@ -269,7 +268,7 @@ export class QualityAssuranceService {
   /**
    * 获取自动化测试列表
    */
-  async getAutomatedTests(taskId: string) {
+  async getAutomatedTests(_taskId: string) {
     // 注意：Prisma schema中需要添加automatedTest表
     // 这里先返回空数组
     return [];
@@ -316,7 +315,7 @@ export class QualityAssuranceService {
   /**
    * 获取测试摘要
    */
-  async getTestSummary(taskId: string) {
+  async getTestSummary(_taskId: string) {
     // 注意：Prisma schema中需要添加automatedTest表
     // 这里先返回模拟数据
     return {

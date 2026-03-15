@@ -11,7 +11,7 @@ interface BatchRequest {
 /**
  * 批量请求控制器 - 提升API效率
  */
-@Controller('api/v1/batch')
+@Controller('batch')
 export class BatchController {
   constructor(
     private agentsService: AgentsService,

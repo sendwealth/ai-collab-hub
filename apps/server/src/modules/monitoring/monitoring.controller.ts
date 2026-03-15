@@ -2,7 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import { PerformanceInterceptor } from '../common/interceptors';
 import { CacheService } from '../cache';
 
-@Controller('api/v1/monitoring')
+@Controller('monitoring')
 export class MonitoringController {
   constructor(
     private performanceInterceptor: PerformanceInterceptor,

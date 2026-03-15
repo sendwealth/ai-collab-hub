@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { TemplatesController } from './templates.controller';
 import { TemplatesService } from './templates.service';
-import { CommonModule } from '../common/common.module';
+import { PrismaModule } from '../common/prisma/prisma.module';
 import { TasksModule } from '../tasks/tasks.module';
 import { CacheModule } from '../cache/cache.module';
 
 @Module({
-  imports: [CommonModule, TasksModule, CacheModule],
+  imports: [PrismaModule, TasksModule, CacheModule],
   controllers: [TemplatesController],
   providers: [TemplatesService],
   exports: [TemplatesService],

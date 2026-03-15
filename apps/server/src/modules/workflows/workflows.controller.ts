@@ -19,7 +19,7 @@ import {
 } from './dto/workflow.dto';
 
 @ApiTags('Workflows')
-@Controller('api/v1/workflows')
+@Controller('workflows')
 export class WorkflowsController {
   constructor(private readonly service: WorkflowsService) {}
 

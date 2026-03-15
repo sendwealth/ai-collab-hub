@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { TemplatesService } from './templates.service';
 
-@Controller('api/v1/templates')
+@Controller('templates')
 export class TemplatesController {
   constructor(private readonly templatesService: TemplatesService) {}
 

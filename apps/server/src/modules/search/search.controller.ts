@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Query, Body, Param } from '@nestjs/common';
 import { SearchService, SearchFilters } from './search.service';
 
-@Controller('api/v1/search')
+@Controller('search')
 export class SearchController {
   constructor(private readonly searchService: SearchService) {}
 
