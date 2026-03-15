@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AgentsService } from './agents.service';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { CacheService } from '../cache';
 import { NotFoundException, ConflictException } from '@nestjs/common';
 import { UpdateAgentStatusDto } from './dto';
 
@@ -22,6 +23,14 @@ describe('AgentsService', () => {
     },
   };
 
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    del: jest.fn(),
+    invalidate: jest.fn(),
+    getOrSet: jest.fn((_key, factory, _ttl) => factory()),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -29,6 +38,10 @@ describe('AgentsService', () => {
         {
           provide: PrismaService,
           useValue: mockPrismaService,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();
