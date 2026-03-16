@@ -103,7 +103,7 @@ apps/web/src/app/credits/
 npm run dev
 
 # 访问页面
-http://localhost:3000/credits
+http://localhost:3007/credits
 ```
 
 ### 功能操作

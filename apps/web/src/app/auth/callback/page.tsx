@@ -45,7 +45,7 @@ function OAuthCallbackContent() {
         }
 
         // 获取用户信息
-        const response = await axios.get('http://localhost:3000/api/v1/auth/me', {
+        const response = await axios.get('http://localhost:3007/api/v1/auth/me', {
           headers: {
             Authorization: `Bearer ${token}`,
           },

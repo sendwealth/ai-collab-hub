@@ -28,7 +28,7 @@ export default function TasksPage() {
   const fetchTasks = React.useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3000/api/v1/tasks');
+      const response = await fetch('http://localhost:3007/api/v1/tasks');
       const data = await response.json();
       
       // Transform API data to match Task interface

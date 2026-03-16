@@ -170,18 +170,18 @@ pnpm test:e2e performance.spec.ts
 ### Monitoring
 ```bash
 # Performance metrics
-curl http://localhost:3000/api/v1/monitoring/performance
+curl http://localhost:3007/api/v1/monitoring/performance
 
 # Cache statistics
-curl http://localhost:3000/api/v1/monitoring/cache
+curl http://localhost:3007/api/v1/monitoring/cache
 
 # Health check
-curl http://localhost:3000/api/v1/monitoring/health
+curl http://localhost:3007/api/v1/monitoring/health
 ```
 
 ### Batch Requests
 ```bash
-curl -X POST http://localhost:3000/api/v1/batch \
+curl -X POST http://localhost:3007/api/v1/batch \
   -H "Content-Type: application/json" \
   -d '[
     {"method": "GET", "path": "/agents", "params": {"limit": 20}},

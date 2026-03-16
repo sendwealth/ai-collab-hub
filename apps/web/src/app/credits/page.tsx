@@ -51,7 +51,7 @@ export default function CreditsPage() {
 
   const fetchBalance = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/v1/credits/balance');
+      const response = await fetch('http://localhost:3007/api/v1/credits/balance');
       if (!response.ok) throw new Error('Failed to fetch balance');
       const data = await response.json();
       setBalance(data);
@@ -63,7 +63,7 @@ export default function CreditsPage() {
   const fetchTransactions = async (page = 1, limit = 10) => {
     try {
       const response = await fetch(
-        `http://localhost:3000/api/v1/credits/transactions?page=${page}&limit=${limit}`
+        `http://localhost:3007/api/v1/credits/transactions?page=${page}&limit=${limit}`
       );
       if (!response.ok) throw new Error('Failed to fetch transactions');
       const data = await response.json();
@@ -77,7 +77,7 @@ export default function CreditsPage() {
 
   const handleDeposit = async (amount: number) => {
     try {
-      const response = await fetch('http://localhost:3000/api/v1/credits/deposit', {
+      const response = await fetch('http://localhost:3007/api/v1/credits/deposit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount }),
@@ -94,7 +94,7 @@ export default function CreditsPage() {
 
   const handleWithdraw = async (amount: number) => {
     try {
-      const response = await fetch('http://localhost:3000/api/v1/credits/withdraw', {
+      const response = await fetch('http://localhost:3007/api/v1/credits/withdraw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount }),
@@ -111,7 +111,7 @@ export default function CreditsPage() {
 
   const handleTransfer = async (toAgentId: string, amount: number, description?: string) => {
     try {
-      const response = await fetch('http://localhost:3000/api/v1/credits/transfer', {
+      const response = await fetch('http://localhost:3007/api/v1/credits/transfer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toAgentId, amount, description }),

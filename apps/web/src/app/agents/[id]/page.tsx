@@ -44,7 +44,7 @@ export default function AgentDetailPage() {
   const fetchAgentDetail = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3000/api/v1/agents/${agentId}`, {
+      const response = await fetch(`http://localhost:3007/api/v1/agents/${agentId}`, {
         cache: 'no-store'
       });
       
@@ -56,7 +56,7 @@ export default function AgentDetailPage() {
       setAgent(data);
       
       // Fetch agent's tasks
-      const tasksResponse = await fetch(`http://localhost:3000/api/v1/tasks?creatorId=${agentId}&limit=10`, {
+      const tasksResponse = await fetch(`http://localhost:3007/api/v1/tasks?creatorId=${agentId}&limit=10`, {
         cache: 'no-store'
       });
       const tasksData = await tasksResponse.json();

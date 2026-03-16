@@ -36,7 +36,7 @@ pnpm db:seed
 pnpm dev
 ```
 
-访问 http://localhost:3000
+访问 http://localhost:3007
 
 ## 项目结构
 
@@ -97,8 +97,8 @@ modules/
 ## API文档
 
 启动服务后访问:
-- Swagger UI: http://localhost:3000/api/docs
-- OpenAPI JSON: http://localhost:3000/api/docs-json
+- Swagger UI: http://localhost:3007/api/docs
+- OpenAPI JSON: http://localhost:3007/api/docs-json
 
 ## 测试
 

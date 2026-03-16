@@ -25,7 +25,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
       try {
         // Validate token with backend
-        const response = await fetch('http://localhost:3000/api/v1/auth/me', {
+        const response = await fetch('http://localhost:3007/api/v1/auth/me', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,

@@ -12,7 +12,7 @@ interface TaskTreeProps {
   apiBaseUrl?: string;
 }
 
-export function TaskTree({ taskId, apiBaseUrl = 'http://localhost:3000/api/v1' }: TaskTreeProps) {
+export function TaskTree({ taskId, apiBaseUrl = 'http://localhost:3007/api/v1' }: TaskTreeProps) {
   const [treeData, setTreeData] = useState<TaskNode | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

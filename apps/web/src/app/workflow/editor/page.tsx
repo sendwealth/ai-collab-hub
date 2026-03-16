@@ -277,7 +277,7 @@ function WorkflowEditorPage() {
     });
 
     try {
-      const response = await fetch('http://localhost:3000/api/v1/workflows/run', {
+      const response = await fetch('http://localhost:3007/api/v1/workflows/run', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

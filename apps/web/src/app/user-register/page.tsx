@@ -93,7 +93,7 @@ export default function UserRegisterPage() {
     setLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:3000/api/v1/auth/register', {
+      const response = await axios.post('http://localhost:3007/api/v1/auth/register', {
         username: formData.username,
         email: formData.email,
         password: formData.password,

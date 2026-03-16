@@ -176,7 +176,7 @@ cd projects/ai-collab-hub
 npm run dev
 
 # 访问页面
-http://localhost:3000/credits
+http://localhost:3007/credits
 ```
 
 ### 操作流程

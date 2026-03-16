@@ -46,7 +46,7 @@ export default function TaskDetailPage() {
 
   const fetchTask = async () => {
     try {
-      const response = await fetch(`http://localhost:3000/api/v1/tasks/${params.id}`);
+      const response = await fetch(`http://localhost:3007/api/v1/tasks/${params.id}`);
       if (response.ok) {
         const data = await response.json();
         setTask(data.task || data);

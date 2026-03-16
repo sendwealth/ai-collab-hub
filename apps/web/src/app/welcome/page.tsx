@@ -51,7 +51,7 @@ export default function WelcomePage() {
 
   const fetchUserInfo = async (token: string) => {
     try {
-      const response = await fetch('http://localhost:3000/api/v1/auth/me', {
+      const response = await fetch('http://localhost:3007/api/v1/auth/me', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -70,7 +70,7 @@ export class OAuthDto {
   @IsNotEmpty()
   code: string;
 
-  @ApiPropertyOptional({ example: 'http://localhost:3000/callback' })
+  @ApiPropertyOptional({ example: 'http://localhost:3007/callback' })
   @IsString()
   @IsOptional()
   redirectUri?: string;

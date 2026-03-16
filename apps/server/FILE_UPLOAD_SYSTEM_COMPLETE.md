@@ -163,23 +163,23 @@ pnpm dev
 
 **Upload a File**:
 ```bash
-curl -X POST http://localhost:3000/api/v1/files/upload?agentId=YOUR_AGENT_ID \
+curl -X POST http://localhost:3007/api/v1/files/upload?agentId=YOUR_AGENT_ID \
   -F "file=@/path/to/file.pdf"
 ```
 
 **List Files**:
 ```bash
-curl http://localhost:3000/api/v1/files?agentId=YOUR_AGENT_ID
+curl http://localhost:3007/api/v1/files?agentId=YOUR_AGENT_ID
 ```
 
 **Download a File**:
 ```bash
-curl http://localhost:3000/api/v1/files/FILE_ID/download
+curl http://localhost:3007/api/v1/files/FILE_ID/download
 ```
 
 **Delete a File**:
 ```bash
-curl -X DELETE http://localhost:3000/api/v1/files/FILE_ID
+curl -X DELETE http://localhost:3007/api/v1/files/FILE_ID
 ```
 
 ### 4. Use the Frontend Component

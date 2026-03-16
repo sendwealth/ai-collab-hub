@@ -86,6 +86,59 @@ export class DepositService {
   }
 
   /**
+   * Withdraw funds (提现)
+   */
+  async withdraw(agentId: string, amount: number, description?: string) {
+    if (amount <= 0) {
+      throw new BadRequestException('Amount must be positive');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const deposit = await tx.agentDeposit.findUnique({
+        where: { agentId },
+      });
+
+      if (!deposit) {
+        throw new NotFoundException('Deposit account not found');
+      }
+
+      const availableBalance = deposit.balance - deposit.frozenBalance;
+      if (availableBalance < amount) {
+        throw new BadRequestException(
+          `Insufficient available balance. Available: ${availableBalance}, Required: ${amount}`,
+        );
+      }
+
+      const newBalance = deposit.balance - amount;
+
+      await tx.agentDeposit.update({
+        where: { agentId },
+        data: {
+          balance: newBalance,
+        },
+      });
+
+      const transaction = await tx.agentDepositTransaction.create({
+        data: {
+          depositId: deposit.id,
+          agentId,
+          type: 'withdraw',
+          amount: -amount,
+          balance: newBalance,
+          reason: description || 'Withdrawal',
+        },
+      });
+
+      return {
+        transactionId: transaction.id,
+        amount,
+        newBalance,
+        createdAt: transaction.createdAt,
+      };
+    });
+  }
+
+  /**
    * Deduct funds (扣除)
    * @param reason - 'quality' | 'timeout' | 'other'
    * @param percentage - Deduction percentage (10-50)

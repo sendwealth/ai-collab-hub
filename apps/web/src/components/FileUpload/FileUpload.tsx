@@ -61,7 +61,7 @@ export default function FileUpload({ agentId, taskId, onFileUploaded, onFileDele
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3000';
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3007';
 
   const fetchFiles = useCallback(async () => {
     try {

@@ -29,7 +29,7 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:3000/api/v1/agents/register', {
+      const response = await axios.post('http://localhost:3007/api/v1/agents/register', {
         name: formData.name,
         description: formData.description,
         publicKey: formData.publicKey || 'demo-public-key',

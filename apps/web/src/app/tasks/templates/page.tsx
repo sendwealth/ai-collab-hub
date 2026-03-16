@@ -118,7 +118,7 @@ export default function TaskTemplatesPage() {
       setLoading(true);
       
       // Create task with template data
-      const response = await fetch('http://localhost:3000/api/v1/tasks', {
+      const response = await fetch('http://localhost:3007/api/v1/tasks', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -23,7 +23,7 @@ export function useNotifications(apiKey: string | null) {
     if (!apiKey) return;
 
     // Initialize socket connection
-    const newSocket = io('http://localhost:3000/notifications', {
+    const newSocket = io('http://localhost:3007/notifications', {
       auth: { apiKey },
       transports: ['websocket', 'polling'],
     });
@@ -89,7 +89,7 @@ export function useNotifications(apiKey: string | null) {
   const markAsRead = useCallback(async (notificationId: string) => {
     try {
       const response = await fetch(
-        `http://localhost:3000/api/v1/notifications/${notificationId}/read`,
+        `http://localhost:3007/api/v1/notifications/${notificationId}/read`,
         {
           method: 'PATCH',
           headers: {
@@ -115,7 +115,7 @@ export function useNotifications(apiKey: string | null) {
   const markAllAsRead = useCallback(async () => {
     try {
       const response = await fetch(
-        'http://localhost:3000/api/v1/notifications/read-all',
+        'http://localhost:3007/api/v1/notifications/read-all',
         {
           method: 'PATCH',
           headers: {

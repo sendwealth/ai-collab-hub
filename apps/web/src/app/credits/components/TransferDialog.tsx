@@ -39,7 +39,7 @@ export default function TransferDialog({
 
   const fetchAgents = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/v1/agents');
+      const response = await fetch('http://localhost:3007/api/v1/agents');
       if (!response.ok) throw new Error('Failed to fetch agents');
       const data = await response.json();
       setAgents(data.agents || []);

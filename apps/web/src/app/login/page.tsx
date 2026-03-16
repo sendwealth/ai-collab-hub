@@ -52,7 +52,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:3000/api/v1/auth/login', {
+      const response = await axios.post('http://localhost:3007/api/v1/auth/login', {
         email: formData.email,
         password: formData.password,
       });
@@ -84,7 +84,7 @@ export default function LoginPage() {
   const handleSocialLogin = async (provider: string) => {
     try {
       // 直接跳转到OAuth授权页面
-      window.location.href = `http://localhost:3000/api/v1/auth/${provider.toLowerCase()}`;
+      window.location.href = `http://localhost:3007/api/v1/auth/${provider.toLowerCase()}`;
     } catch (error) {
       toast({
         title: '登录失败',

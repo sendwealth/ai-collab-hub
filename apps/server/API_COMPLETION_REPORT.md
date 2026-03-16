@@ -198,7 +198,7 @@ pnpm start:prod
 ```
 
 ### 4. API文档
-访问 http://localhost:3000/api 查看Swagger文档
+访问 http://localhost:3007/api 查看Swagger文档
 
 ## 总结
 

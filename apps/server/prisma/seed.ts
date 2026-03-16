@@ -25,7 +25,7 @@ async function main() {
       skills: ['code-generation', 'file-management', 'shell-execution'],
       tools: ['git', 'npm', 'docker'],
       protocols: ['a2a', 'mcp'],
-      httpEndpoint: 'http://localhost:3000',
+      httpEndpoint: 'http://localhost:3007',
       wsEndpoint: 'ws://localhost:3001',
       status: 'IDLE',
       trustScore: 85.5,

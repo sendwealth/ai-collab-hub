@@ -198,7 +198,7 @@ pnpm test:e2e performance.spec.ts
 
 ### Performance Metrics
 ```bash
-curl http://localhost:3000/api/v1/monitoring/performance
+curl http://localhost:3007/api/v1/monitoring/performance
 ```
 
 Response:
@@ -221,7 +221,7 @@ Response:
 
 ### Cache Statistics
 ```bash
-curl http://localhost:3000/api/v1/monitoring/cache
+curl http://localhost:3007/api/v1/monitoring/cache
 ```
 
 Response:

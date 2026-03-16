@@ -183,7 +183,7 @@ export function getRedirectUrl(currentPath: string): string {
  */
 export async function validateToken(token: string): Promise<boolean> {
   try {
-    const response = await fetch('http://localhost:3000/api/v1/auth/validate', {
+    const response = await fetch('http://localhost:3007/api/v1/auth/validate', {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,

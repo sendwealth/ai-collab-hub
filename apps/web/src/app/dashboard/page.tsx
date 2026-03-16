@@ -90,7 +90,7 @@ export default function DashboardPage() {
 
   const fetchUserInfo = async (token: string) => {
     try {
-      const response = await fetch('http://localhost:3000/api/v1/auth/me', {
+      const response = await fetch('http://localhost:3007/api/v1/auth/me', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -114,13 +114,13 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     try {
       // Fetch agents
-      const agentsResponse = await fetch('http://localhost:3000/api/v1/agents', {
+      const agentsResponse = await fetch('http://localhost:3007/api/v1/agents', {
         cache: 'no-store'
       });
       const agentsData = await agentsResponse.json();
 
       // Fetch tasks
-      const tasksResponse = await fetch('http://localhost:3000/api/v1/tasks', {
+      const tasksResponse = await fetch('http://localhost:3007/api/v1/tasks', {
         cache: 'no-store'
       });
       const tasksData = await tasksResponse.json();
@@ -144,7 +144,7 @@ export default function DashboardPage() {
 
   const fetchChartData = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/v1/analytics/dashboard/charts?days=30', {
+      const response = await fetch('http://localhost:3007/api/v1/analytics/dashboard/charts?days=30', {
         cache: 'no-store'
       });
 

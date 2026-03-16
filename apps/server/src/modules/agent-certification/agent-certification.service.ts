@@ -24,19 +24,83 @@ export class AgentCertificationService {
     }
 
     return {
-      certificationId: certification.id,
+      id: certification.id,
       agentId: certification.agentId,
-      level: certification.level,
+      level: this.capitalizeLevel(certification.level),
       score: certification.score,
       testScore: certification.testScore,
       tasksCompleted: certification.tasksCompleted,
       avgRating: certification.avgRating,
       badgeUrl: this.getBadgeUrl(certification.level),
-      earnedAt: certification.earnedAt,
-      expiresAt: certification.expiresAt,
-      totalTests: certification.totalTests,
-      bestScore: certification.bestScore,
+      testDate: certification.earnedAt,
+      expiryDate: certification.expiresAt,
+      status: this.getCertificationStatus(certification.expiresAt),
+      dimensions: this.getDimensions(certification),
     };
+  }
+
+  /**
+   * Apply for certification
+   */
+  async applyForCertification(agentId: string) {
+    let certification = await this.prisma.agentCertification.findUnique({
+      where: { agentId },
+    });
+
+    if (!certification) {
+      certification = await this.prisma.agentCertification.create({
+        data: {
+          agentId,
+          level: 'bronze',
+          score: 0,
+        },
+      });
+    }
+
+    return {
+      certificationId: certification.id,
+      agentId: certification.agentId,
+      level: this.capitalizeLevel(certification.level),
+      status: 'pending',
+      message: 'Certification application submitted. Please complete the test.',
+    };
+  }
+
+  /**
+   * Get certification status based on expiry date
+   */
+  private getCertificationStatus(expiresAt: Date): string {
+    if (!expiresAt) return 'pending';
+    const now = new Date();
+    if (now > expiresAt) return 'expired';
+    return 'active';
+  }
+
+  /**
+   * Get dimensions from certification
+   */
+  private getDimensions(certification: any): any[] {
+    return [
+      {
+        category: 'Code Generation',
+        score: certification.testScore || 0,
+      },
+      {
+        category: 'Problem Solving',
+        score: Math.round((certification.tasksCompleted || 0) * 5),
+      },
+      {
+        category: 'Quality',
+        score: Math.round((certification.avgRating || 0) * 20),
+      },
+    ];
+  }
+
+  /**
+   * Capitalize first letter of level
+   */
+  private capitalizeLevel(level: string): string {
+    return level.charAt(0).toUpperCase() + level.slice(1);
   }
 
   /**

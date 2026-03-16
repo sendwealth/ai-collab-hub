@@ -155,7 +155,7 @@ export class AuthService {
    */
   async getGitHubAuthUrl(state: string): Promise<string> {
     const clientId = process.env.GITHUB_CLIENT_ID;
-    const callbackUrl = process.env.GITHUB_CALLBACK_URL || 'http://localhost:3000/api/v1/auth/github/callback';
+    const callbackUrl = process.env.GITHUB_CALLBACK_URL || 'http://localhost:3007/api/v1/auth/github/callback';
     
     if (!clientId) {
       throw new BadRequestException('GitHub OAuth not configured');
@@ -183,7 +183,7 @@ export class AuthService {
           client_id: process.env.GITHUB_CLIENT_ID,
           client_secret: process.env.GITHUB_CLIENT_SECRET,
           code: code,
-          redirect_uri: process.env.GITHUB_CALLBACK_URL || 'http://localhost:3000/api/v1/auth/github/callback',
+          redirect_uri: process.env.GITHUB_CALLBACK_URL || 'http://localhost:3007/api/v1/auth/github/callback',
           state: state,
         },
         {
@@ -279,7 +279,7 @@ export class AuthService {
    */
   async getGoogleAuthUrl(state: string): Promise<string> {
     const clientId = process.env.GOOGLE_CLIENT_ID;
-    const callbackUrl = process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/api/v1/auth/google/callback';
+    const callbackUrl = process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3007/api/v1/auth/google/callback';
     
     if (!clientId) {
       throw new BadRequestException('Google OAuth not configured');
@@ -310,7 +310,7 @@ export class AuthService {
           client_id: process.env.GOOGLE_CLIENT_ID,
           client_secret: process.env.GOOGLE_CLIENT_SECRET,
           code: code,
-          redirect_uri: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/api/v1/auth/google/callback',
+          redirect_uri: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3007/api/v1/auth/google/callback',
           grant_type: 'authorization_code',
         },
         {

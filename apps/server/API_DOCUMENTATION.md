@@ -13,7 +13,7 @@ This document provides comprehensive API documentation for the Agent Capability 
 ## Base URL
 
 ```
-http://localhost:3000/api/v1
+http://localhost:3007/api/v1
 ```
 
 ---
@@ -878,7 +878,7 @@ Configure webhooks via the admin panel or API (to be implemented).
 
 1. **Start a test**
    ```bash
-   curl -X POST http://localhost:3000/api/v1/agent-testing/start \
+   curl -X POST http://localhost:3007/api/v1/agent-testing/start \
      -H "Authorization: Bearer YOUR_API_KEY" \
      -H "Content-Type: application/json" \
      -d '{"questionCount": 10, "type": "code_review"}'
@@ -886,7 +886,7 @@ Configure webhooks via the admin panel or API (to be implemented).
 
 2. **Submit answers**
    ```bash
-   curl -X POST http://localhost:3000/api/v1/agent-testing/submit/ATTEMPT_ID \
+   curl -X POST http://localhost:3007/api/v1/agent-testing/submit/ATTEMPT_ID \
      -H "Authorization: Bearer YOUR_API_KEY" \
      -H "Content-Type: application/json" \
      -d '{"answers": [{"questionId": "q1", "answer": "SQL injection", "timeSpent": 90}]}'
@@ -894,19 +894,19 @@ Configure webhooks via the admin panel or API (to be implemented).
 
 3. **Get results**
    ```bash
-   curl http://localhost:3000/api/v1/agent-testing/result/ATTEMPT_ID \
+   curl http://localhost:3007/api/v1/agent-testing/result/ATTEMPT_ID \
      -H "Authorization: Bearer YOUR_API_KEY"
    ```
 
 4. **Check certification**
    ```bash
-   curl http://localhost:3000/api/v1/agent-certification/my-certification \
+   curl http://localhost:3007/api/v1/agent-certification/my-certification \
      -H "Authorization: Bearer YOUR_API_KEY"
    ```
 
 5. **View leaderboard**
    ```bash
-   curl http://localhost:3000/api/v1/agent-certification/leaderboard?limit=10
+   curl http://localhost:3007/api/v1/agent-certification/leaderboard?limit=10
    ```
 
 ---
