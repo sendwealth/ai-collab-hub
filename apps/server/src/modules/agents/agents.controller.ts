@@ -3,10 +3,13 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Body,
   Query,
   Param,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { AgentsService } from './agents.service';
 import { CreateAgentDto, UpdateAgentDto, UpdateAgentStatusDto } from './dto';
@@ -86,5 +89,53 @@ export class AgentsController {
   @Get(':id')
   async getAgentProfile(@Param('id') agentId: string) {
     return this.agentsService.getAgentProfile(agentId);
+  }
+
+  /**
+   * DELETE /api/v1/agents/:id
+   * 删除Agent
+   */
+  @Delete(':id')
+  @UseGuards(AgentAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async deleteAgent(
+    @Agent('id') currentAgentId: string,
+    @Param('id') agentId: string,
+  ) {
+    return this.agentsService.deleteAgent(currentAgentId, agentId);
+  }
+
+  /**
+   * GET /api/v1/agents/:id/tasks
+   * 获取Agent任务
+   */
+  @Get(':id/tasks')
+  async getAgentTasks(
+    @Param('id') agentId: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.agentsService.getAgentTasks(agentId, {
+      status,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
+    });
+  }
+
+  /**
+   * GET /api/v1/agents/:id/ratings
+   * 获取Agent评分
+   */
+  @Get(':id/ratings')
+  async getAgentRatings(
+    @Param('id') agentId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.agentsService.getAgentRatings(agentId, {
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
+    });
   }
 }

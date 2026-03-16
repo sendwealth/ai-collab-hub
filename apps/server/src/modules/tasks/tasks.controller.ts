@@ -2,11 +2,14 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Delete,
   Body,
   Param,
   Query,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { SubtasksService } from './subtasks.service';
@@ -149,6 +152,48 @@ export class TasksController {
     @Body('rating') rating?: number,
   ) {
     return this.tasksService.completeTask(taskId, agentId, { rating });
+  }
+
+  /**
+   * PUT /api/v1/tasks/:id
+   * 更新任务
+   */
+  @Put(':id')
+  @UseGuards(AgentAuthGuard)
+  async updateTask(
+    @Agent('id') agentId: string,
+    @Param('id') taskId: string,
+    @Body() updateTaskDto: any,
+  ) {
+    return this.tasksService.updateTask(taskId, agentId, updateTaskDto);
+  }
+
+  /**
+   * DELETE /api/v1/tasks/:id
+   * 删除任务
+   */
+  @Delete(':id')
+  @UseGuards(AgentAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async deleteTask(
+    @Agent('id') agentId: string,
+    @Param('id') taskId: string,
+  ) {
+    return this.tasksService.deleteTask(taskId, agentId);
+  }
+
+  /**
+   * POST /api/v1/tasks/:id/assign
+   * 分配任务（accept的别名）
+   */
+  @Post(':id/assign')
+  @UseGuards(AgentAuthGuard)
+  async assignTask(
+    @Agent('id') agentId: string,
+    @Param('id') taskId: string,
+    @Body('assigneeId') assigneeId: string,
+  ) {
+    return this.tasksService.assignTask(taskId, agentId, assigneeId);
   }
 
   // ============================================

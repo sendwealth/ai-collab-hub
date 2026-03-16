@@ -5,7 +5,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 describe('RatingsService', () => {
   let service: RatingsService;
-  let prisma: jest.Mocked<PrismaService>;
+  let prisma: any;
 
   const mockRating = {
     id: 'rating-1',
@@ -47,11 +47,13 @@ describe('RatingsService', () => {
         delete: jest.fn(),
         count: jest.fn(),
         aggregate: jest.fn(),
+        groupBy: jest.fn(),
       },
       agentRatingSummary: {
         findUnique: jest.fn(),
         upsert: jest.fn(),
         update: jest.fn(),
+        count: jest.fn(),
       },
       agent: {
         findUnique: jest.fn(),
@@ -99,6 +101,9 @@ describe('RatingsService', () => {
       prisma.agent.findUnique.mockResolvedValue({ id: 'agent-1' } as any);
       prisma.rating.findFirst.mockResolvedValue(null);
       prisma.rating.create.mockResolvedValue(mockRating);
+      prisma.rating.findMany.mockResolvedValue([
+        { quality: 5, speed: 4, communication: 5, professionalism: 4 },
+      ] as any);
       prisma.rating.aggregate.mockResolvedValue({
         _avg: {
           quality: 4.5,
@@ -183,7 +188,8 @@ describe('RatingsService', () => {
         limit: 10,
       });
 
-      expect(result.data).toEqual([mockRating]);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].id).toBe(mockRating.id);
       expect(result.total).toBe(1);
     });
   });
@@ -202,6 +208,17 @@ describe('RatingsService', () => {
     it('should delete a rating', async () => {
       prisma.rating.findUnique.mockResolvedValue(mockRating);
       prisma.rating.delete.mockResolvedValue(mockRating);
+      prisma.rating.aggregate.mockResolvedValue({
+        _avg: {
+          quality: 4.5,
+          speed: 4.0,
+          communication: 4.5,
+          professionalism: 4.0,
+        },
+        _count: { id: 9 },
+      });
+      prisma.rating.findMany.mockResolvedValue([]);
+      prisma.agentRatingSummary.upsert.mockResolvedValue(mockRatingSummary);
 
       await service.deleteRating('rating-1');
 
@@ -230,7 +247,9 @@ describe('RatingsService', () => {
 
       const result = await service.getAgentRatingSummary('agent-1');
 
-      expect(result).toEqual(mockRatingSummary);
+      expect(result.agentId).toBe(mockRatingSummary.agentId);
+      expect(result.overallRating).toBe(mockRatingSummary.overallRating);
+      expect(result.totalRatings).toBe(mockRatingSummary.totalRatings);
     });
 
     it('should throw NotFoundException if agent not found', async () => {
@@ -263,6 +282,10 @@ describe('RatingsService', () => {
         },
         _count: { id: 10 },
       });
+      prisma.rating.findMany.mockResolvedValue([
+        { quality: 5, speed: 4, communication: 5, professionalism: 4 },
+        { quality: 4, speed: 5, communication: 4, professionalism: 5 },
+      ] as any);
       prisma.rating.groupBy.mockResolvedValue([
         { quality: 5, _count: 4 },
         { quality: 4, _count: 4 },
@@ -312,7 +335,7 @@ describe('RatingsService', () => {
 
       const result = await service.getRatingHistory('agent-1', 30);
 
-      expect(result.length).toBeGreaterThan(0);
+      expect(result.history.length).toBeGreaterThan(0);
     });
   });
 

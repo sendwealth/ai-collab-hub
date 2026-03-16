@@ -6,6 +6,9 @@ import {
   CreateWorkflowTemplateDto,
   UpdateWorkflowTemplateDto,
   StartWorkflowDto,
+  RunWorkflowDto,
+  WorkflowExecutionResult,
+  NodeExecutionResult,
 } from './dto/workflow.dto';
 
 @Injectable()
@@ -289,5 +292,239 @@ export class WorkflowsService {
         failed: failedInstances,
       },
     };
+  }
+
+  // ============================================
+  // Direct Workflow Execution (without template)
+  // ============================================
+
+  /**
+   * Run workflow definition directly without creating a template
+   */
+  async runWorkflowDefinition(dto: RunWorkflowDto): Promise<WorkflowExecutionResult> {
+    const startTime = new Date();
+    const steps: NodeExecutionResult[] = [];
+    const context: Record<string, any> = dto.context || {};
+
+    try {
+      // Parse and validate workflow definition
+      const parsedWorkflow = this.parser.parse(dto.definition);
+
+      // Execute workflow
+      const result = await this.executeWorkflowDirectly(
+        parsedWorkflow.startNode,
+        parsedWorkflow,
+        context,
+        steps
+      );
+
+      const endTime = new Date();
+
+      return {
+        status: result.success ? 'completed' : 'failed',
+        startTime,
+        endTime,
+        totalDuration: endTime.getTime() - startTime.getTime(),
+        steps,
+        context: result.context,
+        error: result.error,
+      };
+    } catch (error: unknown) {
+      const endTime = new Date();
+      const errorMsg = error instanceof Error ? error.message : String(error);
+
+      return {
+        status: 'failed',
+        startTime,
+        endTime,
+        totalDuration: endTime.getTime() - startTime.getTime(),
+        steps,
+        context,
+        error: errorMsg,
+      };
+    }
+  }
+
+  /**
+   * Execute workflow directly (in-memory execution)
+   */
+  private async executeWorkflowDirectly(
+    startNodeId: string,
+    workflow: ReturnType<typeof this.parser.parse>,
+    context: Record<string, any>,
+    steps: NodeExecutionResult[]
+  ): Promise<{ success: boolean; context: Record<string, any>; error?: string }> {
+    let currentNodeId: string | null = startNodeId;
+    const visited = new Set<string>();
+    const maxIterations = 1000;
+    let iterations = 0;
+
+    while (currentNodeId && iterations < maxIterations) {
+      iterations++;
+
+      const node = workflow.nodes.get(currentNodeId);
+      if (!node) {
+        return { success: false, context, error: `Node ${currentNodeId} not found` };
+      }
+
+      // Check for infinite loops
+      if (node.type !== 'loop' && visited.has(currentNodeId)) {
+        return { success: false, context, error: `Detected infinite loop at node ${currentNodeId}` };
+      }
+      visited.add(currentNodeId);
+
+      // Execute node
+      const stepResult: NodeExecutionResult = {
+        nodeId: node.id,
+        nodeType: node.type,
+        status: 'running',
+        startedAt: new Date(),
+      };
+
+      try {
+        const result = await this.executeNodeDirectly(node, context, workflow);
+        stepResult.status = 'completed';
+        stepResult.output = result.output;
+        stepResult.completedAt = new Date();
+        stepResult.duration = stepResult.completedAt.getTime() - (stepResult.startedAt?.getTime() || 0);
+
+        // Update context with output
+        if (result.output) {
+          Object.assign(context, result.output);
+        }
+        stepResult.output = result.output;
+      } catch (error: unknown) {
+        stepResult.status = 'failed';
+        stepResult.error = error instanceof Error ? error.message : String(error);
+        stepResult.completedAt = new Date();
+        stepResult.duration = stepResult.completedAt.getTime() - (stepResult.startedAt?.getTime() || 0);
+        steps.push(stepResult);
+
+        return { success: false, context, error: stepResult.error };
+      }
+
+      steps.push(stepResult);
+
+      // Check if end node
+      if (node.type === 'end') {
+        return { success: true, context };
+      }
+
+      // Get next nodes
+      const nextEdges = this.parser.getNextNodes(currentNodeId, workflow.edges, context);
+
+      if (nextEdges.length === 0) {
+        // No more nodes, workflow complete
+        return { success: true, context };
+      }
+
+      // For now, follow the first valid edge (parallel execution would need more complex handling)
+      if (nextEdges.length === 1) {
+        currentNodeId = nextEdges[0].to;
+      } else {
+        // Handle condition branches - find first matching condition
+        const validEdge = nextEdges.find(edge => {
+          if (edge.condition !== undefined) {
+            return this.evaluateSimpleCondition(edge.condition, context);
+          }
+          return true;
+        });
+
+        if (validEdge) {
+          currentNodeId = validEdge.to;
+        } else {
+          // No valid path found
+          return { success: true, context };
+        }
+      }
+    }
+
+    if (iterations >= maxIterations) {
+      return { success: false, context, error: 'Max iterations exceeded - possible infinite loop' };
+    }
+
+    return { success: true, context };
+  }
+
+  /**
+   * Execute a single node directly
+   */
+  private async executeNodeDirectly(
+    node: any,
+    context: Record<string, any>,
+    workflow: any
+  ): Promise<{ output?: Record<string, any> }> {
+    switch (node.type) {
+      case 'start':
+        return { output: { started: true, timestamp: new Date().toISOString() } };
+
+      case 'end':
+        return { output: { completed: true, timestamp: new Date().toISOString() } };
+
+      case 'task':
+        const taskConfig = node.config || {};
+        // Simulate task execution (in real implementation, this would call an agent)
+        await new Promise(resolve => setTimeout(resolve, 100));
+        return {
+          output: {
+            taskId: `task-${Date.now()}`,
+            agentId: node.agentId || taskConfig.agentId,
+            status: 'completed',
+            result: taskConfig.expectedResult || 'Task completed successfully',
+            timestamp: new Date().toISOString(),
+          },
+        };
+
+      case 'condition':
+        const nextEdges = workflow.edges.get(node.id) || [];
+        const conditionResults: Record<string, boolean> = {};
+        for (const edge of nextEdges) {
+          if (edge.condition !== undefined) {
+            conditionResults[edge.to] = this.evaluateSimpleCondition(edge.condition, context);
+          }
+        }
+        return { output: { conditions: conditionResults, timestamp: new Date().toISOString() } };
+
+      case 'parallel':
+        const parallelEdges = workflow.edges.get(node.id) || [];
+        return {
+          output: {
+            parallelTasks: parallelEdges.map((e: any) => ({ nodeId: e.to, status: 'queued' })),
+            count: parallelEdges.length,
+            timestamp: new Date().toISOString(),
+          },
+        };
+
+      case 'delay':
+        const delayMs = Math.min(node.delay || node.config?.delay || 1000, 5000);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        return { output: { delayed: delayMs, timestamp: new Date().toISOString() } };
+
+      case 'loop':
+        const maxIterations = node.config?.maxIterations || 10;
+        return { output: { maxIterations, currentIteration: 0, continue: true, timestamp: new Date().toISOString() } };
+
+      default:
+        throw new Error(`Unknown node type: ${node.type}`);
+    }
+  }
+
+  /**
+   * Evaluate simple condition
+   */
+  private evaluateSimpleCondition(condition: boolean | string, variables: Record<string, any>): boolean {
+    if (typeof condition === 'boolean') {
+      return condition;
+    }
+
+    try {
+      let expr = condition;
+      for (const [key, value] of Object.entries(variables)) {
+        expr = expr.replace(new RegExp(`\\$${key}`, 'g'), JSON.stringify(value));
+      }
+      return eval(expr);
+    } catch {
+      return false;
+    }
   }
 }

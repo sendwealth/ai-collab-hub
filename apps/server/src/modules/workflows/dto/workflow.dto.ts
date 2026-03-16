@@ -181,3 +181,72 @@ export class ControlWorkflowDto {
   @IsObject()
   context?: Record<string, any>;
 }
+
+// ============================================
+// Run Workflow Directly (without template)
+// ============================================
+
+export class RunWorkflowDto {
+  @ApiProperty({ description: 'Workflow definition', type: WorkflowDefinitionDto })
+  @ValidateNested()
+  @Type(() => WorkflowDefinitionDto)
+  definition!: WorkflowDefinitionDto;
+
+  @ApiPropertyOptional({ description: 'Initial context variables' })
+  @IsOptional()
+  @IsObject()
+  context?: Record<string, any>;
+}
+
+// ============================================
+// Workflow Execution Result
+// ============================================
+
+export class NodeExecutionResult {
+  @ApiProperty({ description: 'Node ID' })
+  nodeId!: string;
+
+  @ApiProperty({ description: 'Node type' })
+  nodeType!: string;
+
+  @ApiProperty({ description: 'Execution status' })
+  status!: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+
+  @ApiPropertyOptional({ description: 'Node output data' })
+  output?: Record<string, any>;
+
+  @ApiPropertyOptional({ description: 'Error message if failed' })
+  error?: string;
+
+  @ApiPropertyOptional({ description: 'Execution start time' })
+  startedAt?: Date;
+
+  @ApiPropertyOptional({ description: 'Execution end time' })
+  completedAt?: Date;
+
+  @ApiPropertyOptional({ description: 'Execution duration in ms' })
+  duration?: number;
+}
+
+export class WorkflowExecutionResult {
+  @ApiProperty({ description: 'Execution status' })
+  status!: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+  @ApiPropertyOptional({ description: 'Execution start time' })
+  startTime?: Date;
+
+  @ApiPropertyOptional({ description: 'Execution end time' })
+  endTime?: Date;
+
+  @ApiPropertyOptional({ description: 'Total execution duration in ms' })
+  totalDuration?: number;
+
+  @ApiProperty({ description: 'Node execution results', type: [NodeExecutionResult] })
+  steps!: NodeExecutionResult[];
+
+  @ApiPropertyOptional({ description: 'Final context variables' })
+  context?: Record<string, any>;
+
+  @ApiPropertyOptional({ description: 'Error message if failed' })
+  error?: string;
+}

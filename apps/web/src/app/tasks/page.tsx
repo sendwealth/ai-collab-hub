@@ -3,13 +3,14 @@
 import * as React from 'react';
 import { TaskCard, Task } from '@/components/tasks/TaskCard';
 import { TaskFilter, TaskFilters } from '@/components/tasks/TaskFilter';
-import { mockTasks, filterTasks } from '@/lib/mock-tasks';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 const ITEMS_PER_PAGE = 6;
 
 export default function TasksPage() {
+  const { toast } = useToast();
   const [filters, setFilters] = React.useState<TaskFilters>({
     category: 'all',
     minPrice: 0,
@@ -18,37 +19,143 @@ export default function TasksPage() {
     skills: [],
   });
 
+  const [tasks, setTasks] = React.useState<Task[]>([]);
+  const [loading, setLoading] = React.useState(true);
   const [displayCount, setDisplayCount] = React.useState(ITEMS_PER_PAGE);
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
 
-  // 应用筛选
+  // Fetch tasks from API
+  const fetchTasks = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('http://localhost:3000/api/v1/tasks');
+      const data = await response.json();
+      
+      // Transform API data to match Task interface
+      const formattedTasks: Task[] = (data.tasks || []).map((task: any) => ({
+        id: task.id,
+        title: task.title,
+        description: task.description || '',
+        category: task.category || 'general',
+        status: task.status,
+        reward: task.budget ? { credits: task.budget } : undefined,
+        skills: [], // TODO: Get from task.skills
+        creator: task.creator ? {
+          id: task.creator.id,
+          name: task.creator.name || 'Unknown',
+          trustScore: task.creator.trustScore || 0,
+        } : undefined,
+        createdAt: task.createdAt,
+        deadline: task.deadline,
+      }));
+
+      setTasks(formattedTasks);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+      toast({
+        title: '加载失败',
+        description: '无法加载任务列表，请稍后重试',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  React.useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
+
+  // Apply filters
   const filteredTasks = React.useMemo(() => {
-    return filterTasks(mockTasks, filters);
-  }, [filters]);
+    return tasks.filter(task => {
+      // Filter by category
+      if (filters.category !== 'all' && task.category !== filters.category) {
+        return false;
+      }
 
-  // 显示的任务
+      // Filter by status
+      if (filters.status !== 'all' && task.status !== filters.status) {
+        return false;
+      }
+
+      // Filter by price range
+      if (filters.minPrice > 0 || filters.maxPrice > 0) {
+        const price = task.budget?.max || 0;
+        if (filters.minPrice > 0 && price < filters.minPrice) {
+          return false;
+        }
+        if (filters.maxPrice > 0 && price > filters.maxPrice) {
+          return false;
+        }
+      }
+
+      // Filter by skills
+      if (filters.skills.length > 0) {
+        const taskSkills = task.skills || [];
+        if (!filters.skills.some(skill => taskSkills.includes(skill))) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [tasks, filters]);
+
+  // Displayed tasks
   const displayedTasks = filteredTasks.slice(0, displayCount);
   const hasMore = displayCount < filteredTasks.length;
 
   const handleLoadMore = async () => {
-    setIsLoading(true);
-    // 模拟加载延迟
-    await new Promise(resolve => setTimeout(resolve, 500));
+    setIsLoadingMore(true);
+    // Simulate loading delay
+    await new Promise(resolve => setTimeout(resolve, 300));
     setDisplayCount(prev => prev + ITEMS_PER_PAGE);
-    setIsLoading(false);
+    setIsLoadingMore(false);
   };
 
-  const handleBid = (taskId: string) => {
-    console.log('Bid on task:', taskId);
-    // TODO: 实现竞标逻辑
-    alert(`已申请竞标任务 ${taskId}`);
+  const handleBid = async (taskId: string) => {
+    // Check if user is logged in
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+    
+    if (!token) {
+      toast({
+        title: '请先登录',
+        description: '您需要登录后才能竞标任务',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // TODO: Implement bid logic with API
+    toast({
+      title: '功能开发中',
+      description: '竞标功能即将上线',
+    });
   };
 
   const handleView = (taskId: string) => {
-    console.log('View task:', taskId);
-    // TODO: 跳转到任务详情页
     window.location.href = `/tasks/${taskId}`;
   };
+
+  const handleClearFilters = () => {
+    setFilters({
+      category: 'all',
+      minPrice: 0,
+      maxPrice: 0,
+      status: 'all',
+      skills: [],
+    });
+    setDisplayCount(ITEMS_PER_PAGE);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -65,7 +172,30 @@ export default function TasksPage() {
         <div className="flex gap-8">
           {/* 左侧筛选器 */}
           <aside className="w-64 flex-shrink-0">
-            <TaskFilter filters={filters} onFiltersChange={setFilters} />
+            <div className="sticky top-24">
+              <TaskFilter 
+                filters={filters} 
+                onFiltersChange={(newFilters) => {
+                  setFilters(newFilters);
+                  setDisplayCount(ITEMS_PER_PAGE);
+                }} 
+              />
+              {JSON.stringify(filters) !== JSON.stringify({
+                category: 'all',
+                minPrice: 0,
+                maxPrice: 0,
+                status: 'all',
+                skills: [],
+              }) && (
+                <Button
+                  variant="outline"
+                  className="w-full mt-4"
+                  onClick={handleClearFilters}
+                >
+                  清除筛选
+                </Button>
+              )}
+            </div>
           </aside>
 
           {/* 右侧任务列表 */}
@@ -74,6 +204,13 @@ export default function TasksPage() {
               <div className="text-center py-16">
                 <p className="text-gray-500 text-lg">没有找到符合条件的任务</p>
                 <p className="text-gray-400 text-sm mt-2">尝试调整筛选条件</p>
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onClick={handleClearFilters}
+                >
+                  清除所有筛选
+                </Button>
               </div>
             ) : (
               <>
@@ -93,12 +230,12 @@ export default function TasksPage() {
                   <div className="mt-8 text-center">
                     <Button
                       onClick={handleLoadMore}
-                      disabled={isLoading}
+                      disabled={isLoadingMore}
                       variant="outline"
                       size="lg"
                       className="px-8"
                     >
-                      {isLoading ? (
+                      {isLoadingMore ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           加载中...

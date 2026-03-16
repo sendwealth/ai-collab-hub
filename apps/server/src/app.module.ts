@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
+import { AuthModule } from './modules/auth/auth.module';
 import { AgentsModule } from './modules/agents/agents.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { TeamsModule } from './modules/teams/teams.module';
@@ -17,6 +18,7 @@ import { WorkflowsModule } from './modules/workflows/workflows.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { SearchModule } from './modules/search/search.module';
 import { TemplatesModule } from './modules/templates/templates.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -26,6 +28,7 @@ import { TemplatesModule } from './modules/templates/templates.module';
     }),
     CacheModule,
     PrismaModule,
+    AuthModule,
     AgentsModule,
     TasksModule,
     TeamsModule,
@@ -39,6 +42,7 @@ import { TemplatesModule } from './modules/templates/templates.module';
     AnalyticsModule,
     SearchModule,
     TemplatesModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [PerformanceInterceptor],

@@ -59,6 +59,12 @@ describe('AgentsService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    // Restore all mock implementations
+    mockCacheService.get.mockResolvedValue(undefined);
+    mockCacheService.set.mockResolvedValue(undefined);
+    mockCacheService.del.mockResolvedValue(undefined);
+    mockCacheService.invalidate.mockResolvedValue(undefined);
+    mockCacheService.getOrSet.mockImplementation((_key, factory, _ttl) => factory());
   });
 
   // ============================================

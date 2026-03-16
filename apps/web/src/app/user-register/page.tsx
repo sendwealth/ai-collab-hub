@@ -106,7 +106,7 @@ export default function UserRegisterPage() {
 
       // Save token and redirect
       localStorage.setItem('token', response.data.token);
-      router.push('/dashboard');
+      router.push('/welcome');
     } catch (error: any) {
       toast({
         title: '注册失败',

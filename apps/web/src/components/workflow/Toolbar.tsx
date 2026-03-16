@@ -9,7 +9,8 @@ import {
   Undo,
   Redo,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  Loader2
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -21,6 +22,7 @@ interface ToolbarProps {
   onRedo?: () => void;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
+  isExecuting?: boolean;
 }
 
 export function Toolbar({
@@ -32,6 +34,7 @@ export function Toolbar({
   onRedo,
   onZoomIn,
   onZoomOut,
+  isExecuting = false,
 }: ToolbarProps) {
   return (
     <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shadow-sm">
@@ -116,10 +119,20 @@ export function Toolbar({
           variant="default"
           size="sm"
           onClick={onRun}
+          disabled={isExecuting}
           className="h-8 bg-green-600 hover:bg-green-700"
         >
-          <Play className="w-4 h-4 mr-2" />
-          运行
+          {isExecuting ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              执行中...
+            </>
+          ) : (
+            <>
+              <Play className="w-4 h-4 mr-2" />
+              运行
+            </>
+          )}
         </Button>
       </div>
     </div>

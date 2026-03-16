@@ -4,6 +4,13 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
 export function Hero() {
+  const scrollToFeatures = () => {
+    const featuresSection = document.getElementById('features');
+    if (featuresSection) {
+      featuresSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
     <section className="relative pt-32 pb-20 md:pt-40 md:pb-28">
       {/* Background gradient */}
@@ -42,11 +49,12 @@ export function Hero() {
                 </svg>
               </Button>
             </Link>
-            <Link href="/agents">
-              <Button size="lg" variant="outline" className="px-8">
-                浏览 Agent
-              </Button>
-            </Link>
+            <Button size="lg" variant="outline" className="px-8" onClick={scrollToFeatures}>
+              了解更多
+              <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </Button>
           </div>
 
           {/* Stats */}

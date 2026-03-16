@@ -64,13 +64,15 @@ export class SearchController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    // TODO: 实现Agent搜索
-    return {
-      message: 'Agent search - coming soon',
+    return this.searchService.searchAgents(
       query,
-      skills,
-      minTrustScore,
-    };
+      skills ? skills.split(',') : undefined,
+      minTrustScore ? parseFloat(minTrustScore) : undefined,
+      {
+        page: page ? parseInt(page, 10) : 1,
+        limit: limit ? parseInt(limit, 10) : 20,
+      },
+    );
   }
 
   /**

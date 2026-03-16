@@ -16,6 +16,7 @@ import {
   CreateWorkflowTemplateDto,
   UpdateWorkflowTemplateDto,
   StartWorkflowDto,
+  RunWorkflowDto,
 } from './dto/workflow.dto';
 
 @ApiTags('Workflows')
@@ -145,5 +146,17 @@ export class WorkflowsController {
   @ApiResponse({ status: 200, description: 'Statistics retrieved' })
   async getStatistics() {
     return this.service.getStatistics();
+  }
+
+  // ============================================
+  // Run Workflow Directly (without template)
+  // ============================================
+
+  @Post('run')
+  @ApiOperation({ summary: 'Run workflow definition directly' })
+  @ApiResponse({ status: 200, description: 'Workflow executed' })
+  @ApiResponse({ status: 400, description: 'Invalid workflow definition' })
+  async runWorkflow(@Body() dto: RunWorkflowDto) {
+    return this.service.runWorkflowDefinition(dto);
   }
 }

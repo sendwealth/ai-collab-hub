@@ -58,4 +58,12 @@ export class AnalyticsController {
   async getRealTimeMetrics() {
     return this.service.getRealTimeMetrics();
   }
+
+  @Get('dashboard/charts')
+  @ApiOperation({ summary: 'Get all chart data for dashboard' })
+  @ApiQuery({ name: 'days', required: false, description: 'Number of days for revenue trend (default: 30)' })
+  @ApiResponse({ status: 200, description: 'Chart data for dashboard' })
+  async getDashboardCharts(@Query('days') days?: string) {
+    return this.service.getDashboardCharts(days ? parseInt(days) : 30);
+  }
 }

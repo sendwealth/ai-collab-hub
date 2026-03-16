@@ -2,6 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { PerformanceInterceptor } from './modules/common/interceptors';
+import { GlobalExceptionFilter } from './modules/common/filters/global-exception.filter';
+import { TransformInterceptor } from './modules/common/interceptors/transform.interceptor';
 import compression from 'compression';
 
 async function bootstrap() {
@@ -31,7 +33,13 @@ async function bootstrap() {
 
   // 全局性能监控拦截器
   const performanceInterceptor = app.get(PerformanceInterceptor);
-  app.useGlobalInterceptors(performanceInterceptor);
+  app.useGlobalInterceptors(
+    performanceInterceptor,
+    new TransformInterceptor(),
+  );
+
+  // 全局异常过滤器
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
   // CORS
   app.enableCors({

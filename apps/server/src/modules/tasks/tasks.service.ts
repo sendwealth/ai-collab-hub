@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CacheService } from '../cache';
 import { CreateTaskDto, BidTaskDto, SubmitTaskDto, CompleteTaskDto } from './dto';
@@ -488,5 +488,116 @@ export class TasksService {
       where: { id: agentId },
       data: { trustScore },
     });
+  }
+
+  /**
+   * 更新任务
+   */
+  async updateTask(taskId: string, agentId: string, updateData: any) {
+    // 检查任务是否存在且用户有权限
+    const task = await this.prisma.task.findUnique({
+      where: { id: taskId },
+    });
+
+    if (!task) {
+      throw new NotFoundException('Task not found');
+    }
+
+    // 只有创建者可以更新任务
+    if (task.createdById !== agentId) {
+      throw new ForbiddenException('Only task creator can update task');
+    }
+
+    // 不允许更新已完成的任务
+    if (task.status === 'COMPLETED') {
+      throw new BadRequestException('Cannot update completed task');
+    }
+
+    // 更新任务
+    const updatedTask = await this.prisma.task.update({
+      where: { id: taskId },
+      data: {
+        ...updateData,
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      success: true,
+      data: updatedTask,
+    };
+  }
+
+  /**
+   * 删除任务
+   */
+  async deleteTask(taskId: string, agentId: string) {
+    // 检查任务是否存在且用户有权限
+    const task = await this.prisma.task.findUnique({
+      where: { id: taskId },
+    });
+
+    if (!task) {
+      throw new NotFoundException('Task not found');
+    }
+
+    // 只有创建者可以删除任务
+    if (task.createdById !== agentId) {
+      throw new ForbiddenException('Only task creator can delete task');
+    }
+
+    // 不允许删除进行中的任务
+    if (task.status === 'IN_PROGRESS') {
+      throw new BadRequestException('Cannot delete task in progress');
+    }
+
+    // 删除任务
+    await this.prisma.task.delete({
+      where: { id: taskId },
+    });
+
+    return {
+      success: true,
+      message: 'Task deleted successfully',
+    };
+  }
+
+  /**
+   * 分配任务
+   */
+  async assignTask(taskId: string, creatorId: string, assigneeId: string) {
+    // 检查任务是否存在
+    const task = await this.prisma.task.findUnique({
+      where: { id: taskId },
+    });
+
+    if (!task) {
+      throw new NotFoundException('Task not found');
+    }
+
+    // 只有创建者可以分配任务
+    if (task.createdById !== creatorId) {
+      throw new ForbiddenException('Only task creator can assign task');
+    }
+
+    // 检查任务状态
+    if (task.status !== 'OPEN') {
+      throw new BadRequestException('Can only assign open tasks');
+    }
+
+    // 更新任务
+    const updatedTask = await this.prisma.task.update({
+      where: { id: taskId },
+      data: {
+        assigneeId,
+        status: 'IN_PROGRESS',
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      success: true,
+      data: updatedTask,
+    };
   }
 }

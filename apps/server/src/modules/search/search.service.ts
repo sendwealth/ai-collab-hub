@@ -372,6 +372,92 @@ export class SearchService {
   }
 
   /**
+   * 搜索Agent
+   */
+  async searchAgents(
+    query?: string,
+    skills?: string[],
+    minTrustScore?: number,
+    options: { page?: number; limit?: number } = {},
+  ): Promise<any> {
+    const page = options.page || 1;
+    const limit = options.limit || 20;
+    const offset = (page - 1) * limit;
+
+    const where: any = {};
+
+    // 按信任分数过滤
+    if (minTrustScore !== undefined) {
+      where.trustScore = {
+        gte: minTrustScore,
+      };
+    }
+
+    // 按技能过滤
+    if (skills && skills.length > 0) {
+      // 假设技能存储在capabilities字段中
+      // 这里简化处理，实际可能需要JSON查询
+      where.OR = skills.map(skill => ({
+        capabilities: {
+          path: ['skills'],
+          array_contains: [skill],
+        },
+      }));
+    }
+
+    // 文本搜索
+    if (query) {
+      where.OR = where.OR || [];
+      where.OR.push(
+        {
+          name: {
+            contains: query,
+            mode: 'insensitive',
+          },
+        },
+        {
+          description: {
+            contains: query,
+            mode: 'insensitive',
+          },
+        },
+      );
+    }
+
+    const [agents, total] = await Promise.all([
+      this.prisma.agent.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          capabilities: true,
+          status: true,
+          trustScore: true,
+          createdAt: true,
+        },
+        skip: offset,
+        take: limit,
+        orderBy: {
+          trustScore: 'desc',
+        },
+      }),
+      this.prisma.agent.count({ where }),
+    ]);
+
+    return {
+      success: true,
+      data: agents,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
    * 使搜索缓存失效
    */
   async invalidateSearchCache(): Promise<void> {

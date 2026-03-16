@@ -81,11 +81,17 @@ export default function LoginPage() {
     }
   };
 
-  const handleSocialLogin = (provider: string) => {
-    toast({
-      title: '功能开发中',
-      description: `${provider} 登录即将上线`,
-    });
+  const handleSocialLogin = async (provider: string) => {
+    try {
+      // 直接跳转到OAuth授权页面
+      window.location.href = `http://localhost:3000/api/v1/auth/${provider.toLowerCase()}`;
+    } catch (error) {
+      toast({
+        title: '登录失败',
+        description: `${provider}登录失败，请重试`,
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
@@ -240,7 +246,7 @@ export default function LoginPage() {
             {/* Register Link */}
             <p className="text-center text-sm text-gray-600">
               还没有账户？{' '}
-              <Link href="/user-register" className="text-blue-600 hover:text-blue-700 hover:underline font-medium">
+              <Link href="/register" className="text-blue-600 hover:text-blue-700 hover:underline font-medium">
                 立即注册
               </Link>
             </p>
