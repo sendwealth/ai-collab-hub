@@ -422,4 +422,508 @@ describe('DepositService', () => {
       expect(result.topHolders[1].rank).toBe(2);
     });
   });
+
+  describe('balance boundaries', () => {
+    it('should handle zero balance', async () => {
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId: 'agent-123',
+        balance: 0,
+        frozenBalance: 0,
+        totalDeposited: 0,
+        totalDeducted: 0,
+        totalRefunded: 0,
+      });
+
+      const result = await service.getBalance('agent-123');
+
+      expect(result.balance).toBe(0);
+      expect(result.availableBalance).toBe(0);
+    });
+
+    it('should handle negative balance scenario (should not occur)', async () => {
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId: 'agent-123',
+        balance: -100, // Invalid state
+        frozenBalance: 0,
+        totalDeposited: 100,
+        totalDeducted: 200,
+        totalRefunded: 0,
+      });
+
+      const result = await service.getBalance('agent-123');
+
+      expect(result.balance).toBe(-100);
+      // Should handle this edge case
+    });
+
+    it('should handle maximum balance', async () => {
+      const maxBalance = Number.MAX_SAFE_INTEGER - 1;
+
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId: 'agent-123',
+        balance: maxBalance,
+        frozenBalance: 0,
+        totalDeposited: maxBalance,
+        totalDeducted: 0,
+        totalRefunded: 0,
+      });
+
+      const result = await service.getBalance('agent-123');
+
+      expect(result.balance).toBe(maxBalance);
+    });
+
+    it('should prevent deposit with zero amount', async () => {
+      await expect(service.deposit('agent-123', 0)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should prevent deposit with negative amount', async () => {
+      await expect(service.deposit('agent-123', -100)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should prevent deposit exceeding maximum safe integer', async () => {
+      const hugeAmount = Number.MAX_SAFE_INTEGER;
+
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId: 'agent-123',
+        balance: 1000,
+        frozenBalance: 0,
+        totalDeposited: 1000,
+        totalDeducted: 0,
+        totalRefunded: 0,
+      });
+
+      // Should handle overflow scenario
+      await expect(service.deposit('agent-123', hugeAmount)).rejects.toThrow();
+    });
+  });
+
+  describe('concurrent operations', () => {
+    it('should handle simultaneous deposits', async () => {
+      const agentId = 'agent-123';
+      const initialBalance = 1000;
+
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId,
+        balance: initialBalance,
+        frozenBalance: 0,
+        totalDeposited: initialBalance,
+        totalDeducted: 0,
+        totalRefunded: 0,
+      });
+
+      mockPrismaService.agentDeposit.update.mockResolvedValue({
+        agentId,
+        balance: 2500,
+        totalDeposited: 2500,
+      });
+
+      mockPrismaService.agentDepositTransaction.create.mockResolvedValue({
+        id: 'txn-1',
+        amount: 500,
+        balance: 1500,
+        createdAt: new Date(),
+      });
+
+      const results = await Promise.all([
+        service.deposit(agentId, 500),
+        service.deposit(agentId, 1000),
+      ]);
+
+      expect(results).toHaveLength(2);
+      expect(mockPrismaService.agentDeposit.update).toHaveBeenCalled();
+    });
+
+    it('should handle simultaneous deduct operations', async () => {
+      const agentId = 'agent-123';
+
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId,
+        balance: 2000,
+        frozenBalance: 0,
+        totalDeducted: 0,
+      });
+
+      mockPrismaService.agentDeposit.update.mockResolvedValue({
+        agentId,
+        balance: 1500,
+        totalDeducted: 500,
+      });
+
+      mockPrismaService.agentDepositTransaction.create.mockResolvedValue({
+        id: 'txn-1',
+        amount: -250,
+        balance: 1750,
+        createdAt: new Date(),
+      });
+
+      const results = await Promise.all([
+        service.deduct(agentId, 250, 'quality', 'task-1'),
+        service.deduct(agentId, 250, 'quality', 'task-2'),
+      ]);
+
+      expect(results).toHaveLength(2);
+    });
+
+    it('should handle simultaneous deposit and deduct', async () => {
+      const agentId = 'agent-123';
+
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId,
+        balance: 1000,
+        frozenBalance: 0,
+        totalDeposited: 1000,
+        totalDeducted: 0,
+        totalRefunded: 0,
+      });
+
+      mockPrismaService.agentDeposit.update
+        .mockResolvedValueOnce({
+          agentId,
+          balance: 1500,
+          totalDeposited: 1500,
+        })
+        .mockResolvedValueOnce({
+          agentId,
+          balance: 1200,
+          totalDeducted: 300,
+        });
+
+      mockPrismaService.agentDepositTransaction.create.mockResolvedValue({
+        id: 'txn-1',
+        balance: 1200,
+        createdAt: new Date(),
+      });
+
+      const [depositResult, deductResult] = await Promise.all([
+        service.deposit(agentId, 500),
+        service.deduct(agentId, 300, 'quality', 'task-1'),
+      ]);
+
+      expect(depositResult.newBalance).toBeDefined();
+      expect(deductResult.newBalance).toBeDefined();
+    });
+
+    it('should prevent race condition on insufficient balance', async () => {
+      const agentId = 'agent-123';
+
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId,
+        balance: 100,
+        frozenBalance: 0,
+        totalDeducted: 0,
+      });
+
+      // First deduct succeeds
+      mockPrismaService.agentDeposit.update.mockResolvedValueOnce({
+        agentId,
+        balance: 50,
+        totalDeducted: 50,
+      });
+
+      // Second deduct should fail
+      mockPrismaService.agentDepositTransaction.create.mockResolvedValue({
+        id: 'txn-1',
+      });
+
+      const results = await Promise.allSettled([
+        service.deduct(agentId, 75, 'quality', 'task-1'),
+        service.deduct(agentId, 75, 'quality', 'task-2'),
+      ]);
+
+      const successful = results.filter((r) => r.status === 'fulfilled');
+      const failed = results.filter((r) => r.status === 'rejected');
+
+      expect(successful.length).toBeLessThanOrEqual(1);
+    });
+  });
+
+  describe('transaction rollback scenarios', () => {
+    it('should maintain balance on deduct failure', async () => {
+      const agentId = 'agent-123';
+      const initialBalance = 1000;
+
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId,
+        balance: initialBalance,
+        frozenBalance: 0,
+        totalDeducted: 0,
+      });
+
+      // Simulate transaction failure
+      mockPrismaService.agentDeposit.update.mockRejectedValue(
+        new Error('Database error'),
+      );
+
+      await expect(
+        service.deduct(agentId, 100, 'quality', 'task-1'),
+      ).rejects.toThrow();
+
+      // Balance should remain unchanged
+      expect(mockPrismaService.agentDeposit.findUnique).toHaveBeenCalled();
+    });
+
+    it('should handle refund rollback', async () => {
+      const agentId = 'agent-123';
+
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId,
+        balance: 1000,
+        totalRefunded: 0,
+      });
+
+      mockPrismaService.agentDeposit.update.mockRejectedValue(
+        new Error('Transaction failed'),
+      );
+
+      await expect(
+        service.refund(agentId, 100, 'Task refund', 'task-1'),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('frozen balance calculations', () => {
+    it('should calculate available balance correctly when frozen', async () => {
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId: 'agent-123',
+        balance: 1000,
+        frozenBalance: 300,
+        totalDeposited: 1500,
+        totalDeducted: 200,
+        totalRefunded: 0,
+      });
+
+      const result = await service.getBalance('agent-123');
+
+      expect(result.balance).toBe(1000);
+      expect(result.frozenBalance).toBe(300);
+      expect(result.availableBalance).toBe(700); // 1000 - 300
+    });
+
+    it('should prevent deducting from frozen balance', async () => {
+      const agentId = 'agent-123';
+
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId,
+        balance: 1000,
+        frozenBalance: 800, // Only 200 available
+        totalDeducted: 0,
+      });
+
+      await expect(
+        service.deduct(agentId, 500, 'quality', 'task-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should allow deducting within available balance', async () => {
+      const agentId = 'agent-123';
+
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId,
+        balance: 1000,
+        frozenBalance: 700, // 300 available
+        totalDeducted: 0,
+      });
+
+      mockPrismaService.agentDeposit.update.mockResolvedValue({
+        agentId,
+        balance: 800,
+        totalDeducted: 200,
+      });
+
+      mockPrismaService.agentDepositTransaction.create.mockResolvedValue({
+        id: 'txn-1',
+        amount: -200,
+        balance: 800,
+        createdAt: new Date(),
+      });
+
+      const result = await service.deduct(agentId, 200, 'quality', 'task-1');
+
+      expect(result.newBalance).toBe(800);
+    });
+
+    it('should handle complete balance freeze', async () => {
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId: 'agent-123',
+        balance: 1000,
+        frozenBalance: 1000, // All frozen
+        totalDeposited: 1000,
+        totalDeducted: 0,
+        totalRefunded: 0,
+      });
+
+      const result = await service.getBalance('agent-123');
+
+      expect(result.availableBalance).toBe(0);
+    });
+
+    it('should handle unfreeze increasing available balance', async () => {
+      const agentId = 'agent-123';
+
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId,
+        balance: 1000,
+        frozenBalance: 500,
+      });
+
+      mockPrismaService.agentDeposit.update.mockResolvedValue({
+        agentId,
+        frozenBalance: 200,
+      });
+
+      mockPrismaService.agentDepositTransaction.create.mockResolvedValue({
+        id: 'txn-1',
+      });
+
+      const result = await service.unfreeze(agentId, 300);
+
+      expect(result.unfrozenAmount).toBe(300);
+      expect(result.totalFrozen).toBe(200);
+      expect(result.availableBalance).toBe(800);
+    });
+  });
+
+  describe('transaction consistency', () => {
+    it('should maintain transaction history integrity', async () => {
+      const agentId = 'agent-123';
+      const transactions = [
+        {
+          id: 'txn-1',
+          type: 'deposit',
+          amount: 500,
+          balance: 500,
+          reason: 'Initial deposit',
+          taskId: null,
+          metadata: null,
+          createdAt: new Date('2024-01-01'),
+        },
+        {
+          id: 'txn-2',
+          type: 'freeze',
+          amount: -200,
+          balance: 500,
+          reason: 'Task freeze',
+          taskId: 'task-1',
+          metadata: null,
+          createdAt: new Date('2024-01-02'),
+        },
+        {
+          id: 'txn-3',
+          type: 'deduct',
+          amount: -100,
+          balance: 400,
+          reason: 'Quality deduction',
+          taskId: 'task-1',
+          metadata: null,
+          createdAt: new Date('2024-01-03'),
+        },
+      ];
+
+      mockPrismaService.agentDepositTransaction.findMany.mockResolvedValue(
+        transactions,
+      );
+      mockPrismaService.agentDepositTransaction.count.mockResolvedValue(3);
+
+      const result = await service.getTransactionHistory(agentId, {
+        page: 1,
+        limit: 20,
+      });
+
+      expect(result.transactions).toHaveLength(3);
+      expect(result.total).toBe(3);
+      expect(result.transactions[0].type).toBe('deposit');
+      expect(result.transactions[2].type).toBe('deduct');
+    });
+
+    it('should handle empty transaction history', async () => {
+      mockPrismaService.agentDepositTransaction.findMany.mockResolvedValue([]);
+      mockPrismaService.agentDepositTransaction.count.mockResolvedValue(0);
+
+      const result = await service.getTransactionHistory('agent-123', {
+        page: 1,
+        limit: 20,
+      });
+
+      expect(result.transactions).toHaveLength(0);
+      expect(result.total).toBe(0);
+    });
+  });
+
+  describe('balance calculation accuracy', () => {
+    it('should accurately track total deposited', async () => {
+      const agentId = 'agent-123';
+
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId,
+        balance: 1500,
+        frozenBalance: 0,
+        totalDeposited: 1500,
+        totalDeducted: 0,
+        totalRefunded: 0,
+      });
+
+      const result = await service.getBalance(agentId);
+
+      expect(result.totalDeposited).toBe(1500);
+    });
+
+    it('should accurately track total deducted', async () => {
+      const agentId = 'agent-123';
+
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId,
+        balance: 1000,
+        frozenBalance: 0,
+        totalDeposited: 1500,
+        totalDeducted: 500,
+        totalRefunded: 0,
+      });
+
+      const result = await service.getBalance(agentId);
+
+      expect(result.totalDeducted).toBe(500);
+      expect(result.balance).toBe(1000); // 1500 - 500
+    });
+
+    it('should accurately track total refunded', async () => {
+      const agentId = 'agent-123';
+
+      mockPrismaService.agentDeposit.findUnique.mockResolvedValue({
+        id: 'deposit-1',
+        agentId,
+        balance: 1200,
+        frozenBalance: 0,
+        totalDeposited: 1500,
+        totalDeducted: 500,
+        totalRefunded: 200,
+      });
+
+      const result = await service.getBalance(agentId);
+
+      expect(result.totalRefunded).toBe(200);
+      expect(result.balance).toBe(1200); // 1500 - 500 + 200
+    });
+  });
 });

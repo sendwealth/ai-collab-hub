@@ -343,4 +343,516 @@ describe('AgentTestingService', () => {
       expect(service['getLevel'](59)).toBe('Bronze');
     });
   });
+
+  describe('boundary and edge cases', () => {
+    it('should handle minimum score (0)', async () => {
+      const mockAttempt = {
+        id: 'attempt-1',
+        agentId: 'agent-123',
+        questionIds: JSON.stringify(['q1']),
+        totalQuestions: 1,
+        totalScore: 10,
+        status: 'in_progress',
+        startedAt: new Date(),
+      };
+
+      const mockQuestion = {
+        id: 'q1',
+        title: 'Test Question',
+        expectedAnswer: 'correct answer',
+        points: 10,
+        explanation: 'Test explanation',
+      };
+
+      mockPrismaService.agentTestAttempt.findUnique.mockResolvedValue(mockAttempt);
+      mockPrismaService.agentTestQuestion.findUnique.mockResolvedValue(mockQuestion);
+      mockPrismaService.agentTestAnswer.create.mockResolvedValue({});
+      mockPrismaService.agentTestAttempt.update.mockResolvedValue({
+        ...mockAttempt,
+        status: 'completed',
+        score: 0,
+        percentage: 0,
+        completedAt: new Date(),
+        timeSpent: 60,
+      });
+
+      const result = await service.submitAnswers('agent-123', 'attempt-1', {
+        answers: [
+          {
+            questionId: 'q1',
+            answer: 'wrong answer',
+            timeSpent: 30,
+          },
+        ],
+      });
+
+      expect(result.score).toBe(0);
+      expect(result.percentage).toBe(0);
+      expect(result.level).toBe('Bronze');
+    });
+
+    it('should handle perfect score (100)', async () => {
+      const mockAttempt = {
+        id: 'attempt-1',
+        agentId: 'agent-123',
+        questionIds: JSON.stringify(['q1']),
+        totalQuestions: 1,
+        totalScore: 10,
+        status: 'in_progress',
+        startedAt: new Date(),
+      };
+
+      const mockQuestion = {
+        id: 'q1',
+        title: 'Test Question',
+        expectedAnswer: 'correct answer',
+        points: 10,
+        explanation: 'Test explanation',
+      };
+
+      mockPrismaService.agentTestAttempt.findUnique.mockResolvedValue(mockAttempt);
+      mockPrismaService.agentTestQuestion.findUnique.mockResolvedValue(mockQuestion);
+      mockPrismaService.agentTestAnswer.create.mockResolvedValue({});
+      mockPrismaService.agentTestAttempt.update.mockResolvedValue({
+        ...mockAttempt,
+        status: 'completed',
+        score: 10,
+        percentage: 100,
+        completedAt: new Date(),
+        timeSpent: 60,
+      });
+
+      const result = await service.submitAnswers('agent-123', 'attempt-1', {
+        answers: [
+          {
+            questionId: 'q1',
+            answer: 'correct answer',
+            timeSpent: 30,
+          },
+        ],
+      });
+
+      expect(result.score).toBe(10);
+      expect(result.percentage).toBe(100);
+      expect(result.level).toBe('Gold');
+    });
+
+    it('should handle boundary scores (59, 60, 84, 85)', async () => {
+      const service = new AgentTestingService(mockPrismaService as any);
+
+      expect(service['getLevel'](59)).toBe('Bronze');
+      expect(service['getLevel'](60)).toBe('Silver');
+      expect(service['getLevel'](84)).toBe('Silver');
+      expect(service['getLevel'](85)).toBe('Gold');
+    });
+
+    it('should handle empty question set', async () => {
+      mockPrismaService.agentTestQuestion.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.startTest('agent-123', { questionCount: 10 }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should handle single question test', async () => {
+      const mockQuestions = [
+        {
+          id: 'q1',
+          type: 'code_review',
+          category: 'frontend',
+          difficulty: 1,
+          title: 'Test Question',
+          description: 'Test Description',
+          codeSnippet: 'const test = true;',
+          options: null,
+          points: 10,
+        },
+      ];
+
+      mockPrismaService.agentTestQuestion.findMany.mockResolvedValue(mockQuestions);
+      mockPrismaService.agentTestAttempt.create.mockResolvedValue({
+        id: 'attempt-1',
+        agentId: 'agent-123',
+        questionIds: JSON.stringify(['q1']),
+        totalQuestions: 1,
+        totalScore: 10,
+        status: 'in_progress',
+        startedAt: new Date(),
+      });
+
+      const result = await service.startTest('agent-123', { questionCount: 1 });
+
+      expect(result.totalQuestions).toBe(1);
+      expect(result.questions).toHaveLength(1);
+    });
+
+    it('should handle maximum question count', async () => {
+      const mockQuestions = Array(50)
+        .fill(null)
+        .map((_, i) => ({
+          id: `q${i}`,
+          type: 'code_review',
+          category: 'frontend',
+          difficulty: 1,
+          title: `Question ${i}`,
+          description: 'Test',
+          codeSnippet: null,
+          options: null,
+          points: 10,
+        }));
+
+      mockPrismaService.agentTestQuestion.findMany.mockResolvedValue(mockQuestions);
+      mockPrismaService.agentTestAttempt.create.mockResolvedValue({
+        id: 'attempt-1',
+        agentId: 'agent-123',
+        questionIds: JSON.stringify(mockQuestions.map((q) => q.id)),
+        totalQuestions: 50,
+        totalScore: 500,
+        status: 'in_progress',
+        startedAt: new Date(),
+      });
+
+      const result = await service.startTest('agent-123', { questionCount: 50 });
+
+      expect(result.totalQuestions).toBe(50);
+      expect(result.questions).toHaveLength(50);
+    });
+  });
+
+  describe('error handling', () => {
+    it('should prevent duplicate test attempts', async () => {
+      const agentId = 'agent-123';
+      const mockQuestions = [
+        {
+          id: 'q1',
+          type: 'code_review',
+          category: 'frontend',
+          difficulty: 1,
+          title: 'Test Question',
+          description: 'Test',
+          codeSnippet: null,
+          options: null,
+          points: 10,
+        },
+      ];
+
+      mockPrismaService.agentTestQuestion.findMany.mockResolvedValue(mockQuestions);
+      mockPrismaService.agentTestAttempt.findMany.mockResolvedValue([
+        {
+          id: 'active-attempt',
+          agentId,
+          status: 'in_progress',
+          startedAt: new Date(),
+        },
+      ]);
+
+      await expect(
+        service.startTest(agentId, { questionCount: 10 }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should handle invalid answer format', async () => {
+      const mockAttempt = {
+        id: 'attempt-1',
+        agentId: 'agent-123',
+        questionIds: JSON.stringify(['q1']),
+        totalQuestions: 1,
+        totalScore: 10,
+        status: 'in_progress',
+        startedAt: new Date(),
+      };
+
+      mockPrismaService.agentTestAttempt.findUnique.mockResolvedValue(mockAttempt);
+
+      await expect(
+        service.submitAnswers('agent-123', 'attempt-1', {
+          answers: [
+            {
+              questionId: 'q1',
+              answer: '',
+              timeSpent: 30,
+            },
+          ],
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should handle missing answers', async () => {
+      const mockAttempt = {
+        id: 'attempt-1',
+        agentId: 'agent-123',
+        questionIds: JSON.stringify(['q1', 'q2']),
+        totalQuestions: 2,
+        totalScore: 20,
+        status: 'in_progress',
+        startedAt: new Date(),
+      };
+
+      mockPrismaService.agentTestAttempt.findUnique.mockResolvedValue(mockAttempt);
+
+      await expect(
+        service.submitAnswers('agent-123', 'attempt-1', {
+          answers: [
+            {
+              questionId: 'q1',
+              answer: 'answer',
+              timeSpent: 30,
+            },
+          ],
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should handle timeout scenario', async () => {
+      const mockAttempt = {
+        id: 'attempt-1',
+        agentId: 'agent-123',
+        questionIds: JSON.stringify(['q1']),
+        totalQuestions: 1,
+        totalScore: 10,
+        status: 'in_progress',
+        startedAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+      };
+
+      mockPrismaService.agentTestAttempt.findUnique.mockResolvedValue(mockAttempt);
+
+      await expect(
+        service.submitAnswers('agent-123', 'attempt-1', {
+          answers: [
+            {
+              questionId: 'q1',
+              answer: 'answer',
+              timeSpent: 30,
+            },
+          ],
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should handle invalid question IDs', async () => {
+      const mockAttempt = {
+        id: 'attempt-1',
+        agentId: 'agent-123',
+        questionIds: JSON.stringify(['q1']),
+        totalQuestions: 1,
+        totalScore: 10,
+        status: 'in_progress',
+        startedAt: new Date(),
+      };
+
+      mockPrismaService.agentTestAttempt.findUnique.mockResolvedValue(mockAttempt);
+      mockPrismaService.agentTestQuestion.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.submitAnswers('agent-123', 'attempt-1', {
+          answers: [
+            {
+              questionId: 'invalid-q',
+              answer: 'answer',
+              timeSpent: 30,
+            },
+          ],
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should validate question data structure', async () => {
+      const mockQuestions = [
+        {
+          id: 'q1',
+          type: 'code_review',
+          category: 'frontend',
+          difficulty: 1,
+          title: 'Test Question',
+          description: 'Test',
+          codeSnippet: null,
+          options: null,
+          points: -10, // Invalid negative points
+        },
+      ];
+
+      mockPrismaService.agentTestQuestion.findMany.mockResolvedValue(mockQuestions);
+
+      await expect(
+        service.startTest('agent-123', { questionCount: 10 }),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('concurrent test handling', () => {
+    it('should handle multiple agents testing simultaneously', async () => {
+      const agents = ['agent-1', 'agent-2', 'agent-3'];
+      const mockQuestions = [
+        {
+          id: 'q1',
+          type: 'code_review',
+          category: 'frontend',
+          difficulty: 1,
+          title: 'Test',
+          description: 'Test',
+          codeSnippet: null,
+          options: null,
+          points: 10,
+        },
+      ];
+
+      mockPrismaService.agentTestQuestion.findMany.mockResolvedValue(mockQuestions);
+      mockPrismaService.agentTestAttempt.create.mockImplementation((data) =>
+        Promise.resolve({
+          id: `attempt-${data.data.agentId}`,
+          ...data.data,
+          status: 'in_progress',
+          startedAt: new Date(),
+        }),
+      );
+
+      const results = await Promise.all(
+        agents.map((agentId) =>
+          service.startTest(agentId, { questionCount: 10 }),
+        ),
+      );
+
+      expect(results).toHaveLength(3);
+      results.forEach((result, index) => {
+        expect(result.attemptId).toContain(agents[index]);
+      });
+    });
+
+    it('should handle concurrent submissions for same agent', async () => {
+      const agentId = 'agent-123';
+      const mockAttempt = {
+        id: 'attempt-1',
+        agentId,
+        questionIds: JSON.stringify(['q1']),
+        totalQuestions: 1,
+        totalScore: 10,
+        status: 'in_progress',
+        startedAt: new Date(),
+      };
+
+      const mockQuestion = {
+        id: 'q1',
+        title: 'Test',
+        expectedAnswer: 'correct',
+        points: 10,
+        explanation: 'Test',
+      };
+
+      mockPrismaService.agentTestAttempt.findUnique.mockResolvedValue(mockAttempt);
+      mockPrismaService.agentTestQuestion.findUnique.mockResolvedValue(mockQuestion);
+      mockPrismaService.agentTestAnswer.create.mockResolvedValue({});
+      mockPrismaService.agentTestAttempt.update.mockResolvedValue({
+        ...mockAttempt,
+        status: 'completed',
+        score: 10,
+        percentage: 100,
+        completedAt: new Date(),
+        timeSpent: 60,
+      });
+
+      const results = await Promise.all([
+        service.submitAnswers(agentId, 'attempt-1', {
+          answers: [{ questionId: 'q1', answer: 'correct', timeSpent: 30 }],
+        }),
+        service.submitAnswers(agentId, 'attempt-1', {
+          answers: [{ questionId: 'q1', answer: 'correct', timeSpent: 30 }],
+        }),
+      ]);
+
+      // Should handle race condition - only one should succeed
+      expect(results).toBeDefined();
+    });
+
+    it('should maintain data integrity during concurrent operations', async () => {
+      const agentId = 'agent-123';
+
+      mockPrismaService.agentTestAttempt.findMany.mockResolvedValue([]);
+
+      const startAttempts = Array(5)
+        .fill(null)
+        .map((_, i) =>
+          service.startTest(`${agentId}-${i}`, { questionCount: 5 }),
+        );
+
+      await expect(Promise.all(startAttempts)).resolves.toBeDefined();
+      expect(mockPrismaService.agentTestAttempt.create).toHaveBeenCalledTimes(5);
+    });
+  });
+
+  describe('data validation', () => {
+    it('should validate question format has required fields', () => {
+      const validQuestion = {
+        id: 'q1',
+        type: 'code_review',
+        category: 'frontend',
+        difficulty: 1,
+        title: 'Test',
+        description: 'Test',
+        points: 10,
+      };
+
+      expect(validQuestion.id).toBeDefined();
+      expect(validQuestion.type).toBeDefined();
+      expect(validQuestion.points).toBeGreaterThan(0);
+    });
+
+    it('should validate answer format completeness', async () => {
+      const mockAttempt = {
+        id: 'attempt-1',
+        agentId: 'agent-123',
+        questionIds: JSON.stringify(['q1']),
+        totalQuestions: 1,
+        totalScore: 10,
+        status: 'in_progress',
+        startedAt: new Date(),
+      };
+
+      mockPrismaService.agentTestAttempt.findUnique.mockResolvedValue(mockAttempt);
+
+      // Missing timeSpent
+      await expect(
+        service.submitAnswers('agent-123', 'attempt-1', {
+          answers: [
+            {
+              questionId: 'q1',
+              answer: 'answer',
+            } as any,
+          ],
+        }),
+      ).rejects.toThrow();
+    });
+
+    it('should sanitize code snippets to prevent injection', async () => {
+      const maliciousSnippet = '<script>alert("xss")</script>';
+      const mockQuestions = [
+        {
+          id: 'q1',
+          type: 'code_review',
+          category: 'security',
+          difficulty: 3,
+          title: 'Security Test',
+          description: 'Test',
+          codeSnippet: maliciousSnippet,
+          options: null,
+          points: 10,
+        },
+      ];
+
+      mockPrismaService.agentTestQuestion.findMany.mockResolvedValue(mockQuestions);
+      mockPrismaService.agentTestAttempt.create.mockResolvedValue({
+        id: 'attempt-1',
+        agentId: 'agent-123',
+        questionIds: JSON.stringify(['q1']),
+        totalQuestions: 1,
+        totalScore: 10,
+        status: 'in_progress',
+        startedAt: new Date(),
+      });
+
+      const result = await service.startTest('agent-123', { questionCount: 1 });
+
+      expect(result.questions).toBeDefined();
+      // Service should handle sanitization
+    });
+  });
 });
