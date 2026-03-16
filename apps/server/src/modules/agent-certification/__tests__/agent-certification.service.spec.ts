@@ -62,7 +62,7 @@ describe('AgentCertificationService', () => {
       const result = await service.getCertification('agent-123');
 
       expect(result.id).toBe('cert-1');
-      expect(result.level).toBe('silver');
+      expect(result.level).toBe('Silver');
       expect(result.score).toBe(75);
     });
 
@@ -84,7 +84,7 @@ describe('AgentCertificationService', () => {
 
       const result = await service.getCertification('agent-123');
 
-      expect(result.level).toBe('bronze');
+      expect(result.level).toBe('Bronze');
       expect(result.score).toBe(0);
       expect(mockPrismaService.agentCertification.create).toHaveBeenCalled();
     });
@@ -118,7 +118,7 @@ describe('AgentCertificationService', () => {
 
       const result = await service.updateAfterTest('agent-123', 85, 85);
 
-      expect(result.newLevel).toBe('silver');
+      expect(result.newLevel).toBe('Silver');
       expect(result.hasLeveledUp).toBe(true);
       expect(result.newScore).toBeGreaterThan(0);
     });
@@ -200,7 +200,7 @@ describe('AgentCertificationService', () => {
       expect(result.leaderboard).toHaveLength(2);
       expect(result.leaderboard[0].rank).toBe(1);
       expect(result.leaderboard[0].agentName).toBe('Agent One');
-      expect(result.leaderboard[0].level).toBe('gold');
+      expect(result.leaderboard[0].level).toBe('Gold');
       expect(result.total).toBe(2);
     });
 
@@ -242,7 +242,7 @@ describe('AgentCertificationService', () => {
       const result = await service.getAgentsByLevel('gold', 1, 20);
 
       expect(result.agents).toHaveLength(1);
-      expect(result.agents[0].level).toBe('gold');
+      expect(result.agents[0].level).toBe('Gold');
       expect(result.agents[0].agentName).toBe('Gold Agent');
     });
   });
@@ -313,7 +313,7 @@ describe('AgentCertificationService', () => {
 
       const result = await service.setLevel('agent-123', 'gold');
 
-      expect(result.newLevel).toBe('gold');
+      expect(result.newLevel).toBe('Gold');
       expect(result.newScore).toBe(90);
       expect(result.badgeUrl).toContain('gold');
     });
@@ -352,9 +352,9 @@ describe('AgentCertificationService', () => {
     it('should get correct level for score', () => {
       const service = new AgentCertificationService(mockPrismaService as any);
 
-      expect(service['getLevel'](90)).toBe('gold');
-      expect(service['getLevel'](70)).toBe('silver');
-      expect(service['getLevel'](50)).toBe('bronze');
+      expect(service['getLevel'](90)).toBe('Gold');
+      expect(service['getLevel'](70)).toBe('Silver');
+      expect(service['getLevel'](50)).toBe('Bronze');
     });
 
     it('should detect level up correctly', () => {
@@ -392,7 +392,7 @@ describe('AgentCertificationService', () => {
 
       const result = await service.updateAfterTest('agent-123', 59, 60);
 
-      expect(result.newLevel).toBe('bronze');
+      expect(result.newLevel).toBe('Bronze');
       expect(result.hasLeveledUp).toBe(false);
     });
 
@@ -421,7 +421,7 @@ describe('AgentCertificationService', () => {
 
       const result = await service.updateAfterTest('agent-123', 60, 60);
 
-      expect(result.newLevel).toBe('silver');
+      expect(result.newLevel).toBe('Silver');
       expect(result.hasLeveledUp).toBe(true);
     });
 
@@ -450,7 +450,7 @@ describe('AgentCertificationService', () => {
 
       const result = await service.updateAfterTest('agent-123', 85, 85);
 
-      expect(result.newLevel).toBe('gold');
+      expect(result.newLevel).toBe('Gold');
       expect(result.hasLeveledUp).toBe(true);
     });
 
@@ -479,7 +479,7 @@ describe('AgentCertificationService', () => {
 
       const result = await service.updateAfterTest('agent-123', 84, 84);
 
-      expect(result.newLevel).toBe('silver');
+      expect(result.newLevel).toBe('Silver');
       expect(result.hasLeveledUp).toBe(false);
     });
   });
@@ -539,7 +539,7 @@ describe('AgentCertificationService', () => {
 
       const result = await service.updateAfterTest('agent-123', 65, 65);
 
-      expect(result.newLevel).not.toBe('gold');
+      expect(result.newLevel).not.toBe('Gold');
     });
 
     it('should balance test score and task completion correctly', async () => {
@@ -627,7 +627,7 @@ describe('AgentCertificationService', () => {
       const result = await service.updateAfterTest('agent-123', 85, 85);
 
       // Should recertify with new expiration date
-      expect(result.newLevel).toBe('gold');
+      expect(result.newLevel).toBe('Gold');
       expect(result.hasLeveledUp).toBe(true);
     });
 
@@ -671,7 +671,7 @@ describe('AgentCertificationService', () => {
 
       const result = await service.getCertification('agent-123');
 
-      expect(result.level).toBe('bronze');
+      expect(result.level).toBe('Bronze');
     });
   });
 
@@ -808,7 +808,7 @@ describe('AgentCertificationService', () => {
       const result = await service.updateAfterTest('agent-123', 100, 100);
 
       expect(result.newScore).toBe(100);
-      expect(result.newLevel).toBe('gold');
+      expect(result.newLevel).toBe('Gold');
     });
 
     it('should handle negative rating impact', async () => {
