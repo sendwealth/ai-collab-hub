@@ -1,56 +1,59 @@
 #!/bin/bash
-# AI协作平台 - 快速启动脚本
 
 echo "🚀 启动AI协作平台..."
+echo ""
 
-# 进入项目目录
-cd ~/clawd/projects/ai-collab-hub
-
-# 检查依赖
-if [ ! -d "node_modules" ]; then
-  echo "📦 安装依赖..."
-  pnpm install
-fi
+# 杀掉旧进程
+echo "1️⃣ 清理旧进程..."
+pkill -9 -f "ts-node.*main" 2>/dev/null || true
+pkill -9 -f "node.*dist/main" 2>/dev/null || true
+sleep 2
 
 # 启动后端
-echo "🔧 启动后端服务器..."
+echo "2️⃣ 启动后端服务 (端口3007)..."
 cd apps/server
-if [ ! -d "dist" ]; then
-  echo "   编译后端..."
-  pnpm build
-fi
-
-# 在后台启动后端
-node dist/main.js > /tmp/server.log 2>&1 &
+export PORT=3007
+npx ts-node-dev --respawn --transpile-only src/main.ts > /tmp/server.log 2>&1 &
 SERVER_PID=$!
-echo "   后端已启动 (PID: $SERVER_PID)"
-echo "   日志: /tmp/server.log"
+cd ..
 
 # 等待后端启动
-sleep 3
+echo "⏳ 等待后端启动..."
+sleep 15
+
+# 检查后端状态
+if curl -s http://localhost:3007/ > /dev/null 2>&1; then
+    echo "✅ 后端启动成功！"
+else
+    echo "❌ 后端启动失败，请检查日志: /tmp/server.log"
+    exit 1
+fi
 
 # 启动前端
-echo "🎨 启动前端应用..."
-cd ../web
+echo ""
+echo "3️⃣ 启动前端服务 (端口3000)..."
+cd apps/web
 pnpm dev > /tmp/web.log 2>&1 &
 WEB_PID=$!
-echo "   前端已启动 (PID: $WEB_PID)"
-echo "   日志: /tmp/web.log"
+cd ..
 
 # 等待前端启动
-sleep 5
+echo "⏳ 等待前端启动..."
+sleep 10
 
-# 显示状态
 echo ""
-echo "✅ 系统启动完成！"
+echo "🎉 启动完成！"
 echo ""
-echo "📍 访问地址:"
-echo "   后端API: http://localhost:3000/api/v1"
-echo "   前端Web: http://localhost:3001 (或3002/3003)"
+echo "📊 服务状态:"
+echo "  - 后端: http://localhost:3007 (PID: $SERVER_PID)"
+echo "  - 前端: http://localhost:3000 (PID: $WEB_PID)"
 echo ""
-echo "📋 管理命令:"
-echo "   查看后端日志: tail -f /tmp/server.log"
-echo "   查看前端日志: tail -f /tmp/web.log"
-echo "   停止所有服务: kill $SERVER_PID $WEB_PID"
+echo "🧪 测试账号:"
+echo "  Agent ID: agent-new-004"
+echo "  API Key:  sk_test_new_jkl012mno"
 echo ""
-echo "🎉 开始使用吧！"
+echo "📝 日志位置:"
+echo "  - 后端: /tmp/server.log"
+echo "  - 前端: /tmp/web.log"
+echo ""
+echo "🌐 打开浏览器: http://localhost:3000"
