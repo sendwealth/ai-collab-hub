@@ -64,6 +64,52 @@ export class AuthService {
     throw new BadRequestException('Please use API Key authentication');
   }
 
+  async agentLogin(agentId: string, apiKey: string) {
+    // 查找Agent
+    const agent = await this.prisma.agent.findFirst({
+      where: {
+        OR: [
+          { id: agentId },
+          { name: agentId }, // 支持使用name登录
+        ],
+      },
+    });
+
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    // 验证API Key
+    if (agent.apiKey !== apiKey) {
+      throw new UnauthorizedException('Invalid API Key');
+    }
+
+    // 更新Agent状态为在线
+    await this.prisma.agent.update({
+      where: { id: agent.id },
+      data: { 
+        status: 'idle',
+        lastSeen: new Date(),
+      },
+    });
+
+    // 生成tokens
+    const tokens = await this.generateTokens(agent.id, agent.name);
+
+    return {
+      success: true,
+      data: {
+        agent: {
+          id: agent.id,
+          name: agent.name,
+          status: agent.status,
+          trustScore: agent.trustScore,
+        },
+        ...tokens,
+      },
+    };
+  }
+
   async logout(agentId: string) {
     // 更新Agent状态为离线
     await this.prisma.agent.update({

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/components/ui/use-toast';
-import { Mail, Lock, Eye, EyeOff, Github, Chrome } from 'lucide-react';
+import { User, Key, Eye, EyeOff, Github, Chrome } from 'lucide-react';
 import axios from 'axios';
 
 export default function LoginPage() {
@@ -17,8 +17,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
+    agentId: '',
+    apiKey: '',
     rememberMe: false,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -26,16 +26,14 @@ export default function LoginPage() {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.email) {
-      newErrors.email = '请输入邮箱地址';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = '请输入有效的邮箱地址';
+    if (!formData.agentId) {
+      newErrors.agentId = '请输入Agent ID';
     }
 
-    if (!formData.password) {
-      newErrors.password = '请输入密码';
-    } else if (formData.password.length < 6) {
-      newErrors.password = '密码至少需要6个字符';
+    if (!formData.apiKey) {
+      newErrors.apiKey = '请输入API Key';
+    } else if (formData.apiKey.length < 10) {
+      newErrors.apiKey = 'API Key格式不正确';
     }
 
     setErrors(newErrors);
@@ -52,28 +50,31 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:3007/api/v1/auth/login', {
-        email: formData.email,
-        password: formData.password,
+      // 使用Agent ID + API Key登录
+      const response = await axios.post('http://localhost:3007/api/v1/auth/agent-login', {
+        agentId: formData.agentId,
+        apiKey: formData.apiKey,
       });
 
       // Save token
       if (formData.rememberMe) {
         localStorage.setItem('token', response.data.token);
+        localStorage.setItem('agentId', formData.agentId);
       } else {
         sessionStorage.setItem('token', response.data.token);
+        sessionStorage.setItem('agentId', formData.agentId);
       }
 
       toast({
         title: '登录成功！',
-        description: '欢迎回来',
+        description: `欢迎回来，${formData.agentId}`,
       });
 
-      router.push('/dashboard');
+      router.push('/certification');
     } catch (error: any) {
       toast({
         title: '登录失败',
-        description: error.response?.data?.message || '邮箱或密码错误',
+        description: error.response?.data?.message || 'Agent ID或API Key错误',
         variant: 'destructive',
       });
     } finally {
@@ -135,42 +136,42 @@ export default function LoginPage() {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center lg:text-left">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">欢迎回来</h2>
-            <p className="text-gray-600">登录您的账户继续</p>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">Agent 登录</h2>
+            <p className="text-gray-600">使用您的Agent ID和API Key登录</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Email Field */}
+            {/* Agent ID Field */}
             <div className="space-y-2">
-              <Label htmlFor="email">邮箱地址</Label>
+              <Label htmlFor="agentId">Agent ID</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="your@email.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className={`pl-10 ${errors.email ? 'border-red-500' : ''}`}
+                  id="agentId"
+                  type="text"
+                  placeholder="agent-gold-001"
+                  value={formData.agentId}
+                  onChange={(e) => setFormData({ ...formData, agentId: e.target.value })}
+                  className={`pl-10 ${errors.agentId ? 'border-red-500' : ''}`}
                 />
               </div>
-              {errors.email && (
-                <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+              {errors.agentId && (
+                <p className="text-red-500 text-xs mt-1">{errors.agentId}</p>
               )}
             </div>
 
-            {/* Password Field */}
+            {/* API Key Field */}
             <div className="space-y-2">
-              <Label htmlFor="password">密码</Label>
+              <Label htmlFor="apiKey">API Key</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Key className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <Input
-                  id="password"
+                  id="apiKey"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className={`pl-10 pr-10 ${errors.password ? 'border-red-500' : ''}`}
+                  placeholder="sk_test_xxxxxxxxxxxx"
+                  value={formData.apiKey}
+                  onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
+                  className={`pl-10 pr-10 ${errors.apiKey ? 'border-red-500' : ''}`}
                 />
                 <button
                   type="button"
@@ -180,8 +181,8 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
-              {errors.password && (
-                <p className="text-red-500 text-xs mt-1">{errors.password}</p>
+              {errors.apiKey && (
+                <p className="text-red-500 text-xs mt-1">{errors.apiKey}</p>
               )}
             </div>
 
@@ -194,12 +195,9 @@ export default function LoginPage() {
                   setFormData({ ...formData, rememberMe: e.target.checked })
                 }
               />
-              <Link 
-                href="/forgot-password" 
-                className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
-              >
-                忘记密码？
-              </Link>
+              <div className="text-sm text-gray-500">
+                测试账号: agent-new-004 / sk_test_new_jkl012mno
+              </div>
             </div>
 
             {/* Login Button */}
