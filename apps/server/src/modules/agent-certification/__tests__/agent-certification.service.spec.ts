@@ -61,7 +61,7 @@ describe('AgentCertificationService', () => {
 
       const result = await service.getCertification('agent-123');
 
-      expect(result.certificationId).toBe('cert-1');
+      expect(result.id).toBe('cert-1');
       expect(result.level).toBe('silver');
       expect(result.score).toBe(75);
     });
@@ -650,7 +650,7 @@ describe('AgentCertificationService', () => {
 
       const result = await service.getCertification('agent-123');
 
-      expect(result.isExpired).toBe(true);
+      expect(result.status).toBe('expired');
     });
 
     it('should set correct expiration date on new certification', async () => {
@@ -693,7 +693,7 @@ describe('AgentCertificationService', () => {
 
       expect(results).toHaveLength(3);
       results.forEach((result, index) => {
-        expect(result.certificationId).toContain(agents[index]);
+        expect(result.id).toContain(agents[index]);
       });
     });
 
@@ -723,7 +723,7 @@ describe('AgentCertificationService', () => {
 
       // All should return the same certification
       results.forEach((result) => {
-        expect(result.certificationId).toBe('cert-1');
+        expect(result.id).toBe('cert-1');
       });
     });
 
