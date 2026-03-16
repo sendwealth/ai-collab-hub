@@ -19,6 +19,9 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { SearchModule } from './modules/search/search.module';
 import { TemplatesModule } from './modules/templates/templates.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AgentTestingModule } from './modules/agent-testing/agent-testing.module';
+import { AgentCertificationModule } from './modules/agent-certification/agent-certification.module';
+import { DepositModule } from './modules/deposit/deposit.module';
 
 @Module({
   imports: [
@@ -43,6 +46,9 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     SearchModule,
     TemplatesModule,
     NotificationsModule,
+    AgentTestingModule,
+    AgentCertificationModule,
+    DepositModule,
   ],
   controllers: [AppController],
   providers: [PerformanceInterceptor],

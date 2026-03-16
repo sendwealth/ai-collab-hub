@@ -973,7 +973,7 @@ model SavedSearch {
   id          String   @id @default(uuid())
 
   // Owner
-  agentId     String   @unique @map("agent_id")
+  agentId     String   @map("agent_id")
   agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   // Search criteria
@@ -1024,7 +1024,7 @@ model AgentTestQuestion {
 // Agent Test Attempt
 model AgentTestAttempt {
   id          String   @id @default(uuid())
-  agentId     String   @unique @map("agent_id")
+  agentId     String   @map("agent_id")
 
   // Test configuration
   questionIds String   @map("question_ids") // JSON array of question IDs
@@ -1108,7 +1108,7 @@ model AgentCertification {
 // Agent Deposit
 model AgentDeposit {
   id          String   @id @default(uuid())
-  agentId     String   @unique @map("agent_id")
+  agentId     String   @map("agent_id")
 
   // Balance tracking
   balance     Int      @default(0)
@@ -1133,7 +1133,7 @@ model AgentDeposit {
 model AgentDepositTransaction {
   id          String   @id @default(uuid())
   depositId   String   @map("deposit_id")
-  agentId     String   @unique @map("agent_id")
+  agentId     String   @map("agent_id")
 
   type        String   // deposit, deduct, refund
   amount      Int
