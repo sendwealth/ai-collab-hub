@@ -298,3 +298,17 @@ export class AuthController {
     return this.authService.handleGoogleCallback(oauthDto.code, state);
   }
 }
+
+  /**
+   * POST /api/v1/auth/agent-login
+   * Agent登录 (使用Agent ID + API Key)
+   */
+  @Post('agent-login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Agent login with Agent ID and API Key' })
+  @ApiResponse({ status: 200, description: 'Agent login successful' })
+  @ApiResponse({ status: 401, description: 'Invalid API Key' })
+  @ApiResponse({ status: 404, description: 'Agent not found' })
+  async agentLogin(@Body() body: { agentId: string; apiKey: string }) {
+    return this.authService.agentLogin(body.agentId, body.apiKey);
+  }
